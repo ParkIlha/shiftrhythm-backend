@@ -1,0 +1,45 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-shiftrhythm}
+      MYSQL_USER: ${DB_USERNAME:-shiftrhythm}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-shiftrhythm}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ai-server:
+    build: ./ai-server
+    restart: unless-stopped
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AI_MODEL_VISION: ${AI_MODEL_VISION:-claude-sonnet-5}
+      AI_MODEL_FAST: ${AI_MODEL_FAST:-claude-haiku-4-5-20251001}
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-server:
+        condition: service_started
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-shiftrhythm}
+      DB_USERNAME: ${DB_USERNAME:-shiftrhythm}
+      DB_PASSWORD: ${DB_PASSWORD:-shiftrhythm}
+      AI_SERVER_BASE_URL: http://ai-server:8000
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:
