@@ -80,7 +80,7 @@ FastAPI(`ai-server`)가 Spring 내부망에 제공하는 API. Spring이 `AI_SERV
   "eventType": "SHIFT_END_DELAY | SHIFT_ADDED | SLEEP_SHORTAGE | APPOINTMENT_ADDED | OTHER",
   "delayMinutes": "int (앞당겨짐은 음수, 해당 없으면 0)",
   "confirmedAt": "ISO8601 (서버 생성)",
-  "reasonCategory": "LATE_CLOCKOUT | DINNER_GATHERING | SHIFT_CHANGE | OTHER"
+  "reasonCategory": "LATE_CLOCKOUT | EARLY_CLOCKOUT | SHIFT_CHANGE | PERSONAL_SCHEDULE | OTHER"
 }
 ```
 **Response `422`** — 근무·수면·일정과 무관한 입력
