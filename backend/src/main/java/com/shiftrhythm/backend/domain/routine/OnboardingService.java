@@ -197,9 +197,10 @@ public class OnboardingService {
                 computation.sleepBlock().ankerBlockStart(),
                 computation.sleepBlock().ankerBlockEnd()
         );
-        SleepBlock clampedSleep = AiSleepMealValidator.clampSleep(proposedSleep, computation.sleepWindow());
+        SleepBlock clampedSleep = AiSleepMealValidator.clampSleep(proposedSleep, computation.sleepBlock(), computation.sleepWindow());
         if (AiSleepMealValidator.isMainSleepSuspiciouslyShort(clampedSleep, computation.sleepBlock())) {
-            log.warn("AI가 제안한 주수면이 규칙 기반 초안보다 80% 미만으로 짧습니다: date={}", r.getDate());
+            log.warn("AI가 제안한 주수면이 규칙 기반 초안보다 80% 미만으로 짧아 규칙 기반 초안을 대신 사용합니다: date={}", r.getDate());
+            clampedSleep = computation.sleepBlock();
         }
 
         LocalTime mainMeal = LocalTime.parse(response.meal().mainMealTime());

@@ -179,7 +179,11 @@ public class ReplanFacade {
                 computation.sleepBlock().ankerBlockStart(),
                 computation.sleepBlock().ankerBlockEnd()
         );
-        return AiSleepMealValidator.clampSleep(proposed, computation.sleepWindow());
+        SleepBlock clamped = AiSleepMealValidator.clampSleep(proposed, computation.sleepBlock(), computation.sleepWindow());
+        if (AiSleepMealValidator.isMainSleepSuspiciouslyShort(clamped, computation.sleepBlock())) {
+            return computation.sleepBlock();
+        }
+        return clamped;
     }
 
     private MealTimes resolveFinalMeal(MealBlock mealBlock, SuggestAdjustmentResponse suggestion, SleepBlock finalSleep) {

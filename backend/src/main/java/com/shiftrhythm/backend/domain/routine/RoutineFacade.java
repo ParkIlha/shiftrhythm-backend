@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -99,8 +100,7 @@ public class RoutineFacade {
         if (shouldRecall) {
             SuggestAdjustmentRequest request = buildRequest(profile, computation, userId, date, checkIn.get());
             Optional<SuggestAdjustmentResponse> response = aiScheduleAdapter.suggestAdjustment(request);
-            if (response.isPresent()) {
-                applyToCurrent(current, computation, response.get());
+            if (response.isPresent() && applyToCurrent(current, computation, response.get())) {
                 current.setAiUpdatedAt(LocalDateTime.now());
                 routineResultRepository.save(current);
                 wasJustPersonalized = true;
@@ -194,29 +194,50 @@ public class RoutineFacade {
                 profile.getRhythmPreference() == null ? null : profile.getRhythmPreference().name());
     }
 
-    private void applyToCurrent(RoutineResult current, RoutineComputation computation, SuggestAdjustmentResponse response) {
-        SleepBlock proposedSleep = new SleepBlock(
-                LocalTime.parse(response.sleep().mainSleepStart()),
-                LocalTime.parse(response.sleep().mainSleepEnd()),
-                response.sleep().supplementarySleepStart() == null ? null : LocalTime.parse(response.sleep().supplementarySleepStart()),
-                response.sleep().supplementarySleepEnd() == null ? null : LocalTime.parse(response.sleep().supplementarySleepEnd()),
-                response.sleep().napMinutes(),
-                computation.sleepBlock().adjustToleranceMinutes(),
-                computation.sleepBlock().ankerBlockStart(),
-                computation.sleepBlock().ankerBlockEnd()
-        );
-        SleepBlock clampedSleep = AiSleepMealValidator.clampSleep(proposedSleep, computation.sleepWindow());
-        if (AiSleepMealValidator.isMainSleepSuspiciouslyShort(clampedSleep, computation.sleepBlock())) {
-            log.warn("AI가 제안한 주수면이 규칙 기반 초안보다 80% 미만으로 짧습니다: date={}", current.getDate());
+    /**
+     * AI 응답의 시각 문자열을 파싱해 current에 반영한다. AI가 형식이 깨진 값(예: "9:00", "24:00")이나
+     * null을 보내면 LocalTime.parse가 DateTimeParseException/NullPointerException을 던지는데, 이 경우
+     * 기존에 저장돼 있던 초안(current)을 그대로 두고 이번 AI 조정만 스킵한다 — 조회 API가 AI 응답 하나
+     * 때문에 500으로 죽는 것을 방지한다.
+     *
+     * @return 정상 반영됐으면 true, 파싱 실패로 스킵했으면 false
+     */
+    private boolean applyToCurrent(RoutineResult current, RoutineComputation computation, SuggestAdjustmentResponse response) {
+        SleepBlock clampedSleep;
+        LocalTime clampedMainMeal;
+        LocalTime subMeal;
+        LocalTime snackTime;
+        MealBlock mb = computation.mealBlock();
+        try {
+            SleepBlock proposedSleep = new SleepBlock(
+                    LocalTime.parse(response.sleep().mainSleepStart()),
+                    LocalTime.parse(response.sleep().mainSleepEnd()),
+                    response.sleep().supplementarySleepStart() == null ? null : LocalTime.parse(response.sleep().supplementarySleepStart()),
+                    response.sleep().supplementarySleepEnd() == null ? null : LocalTime.parse(response.sleep().supplementarySleepEnd()),
+                    response.sleep().napMinutes(),
+                    computation.sleepBlock().adjustToleranceMinutes(),
+                    computation.sleepBlock().ankerBlockStart(),
+                    computation.sleepBlock().ankerBlockEnd()
+            );
+            clampedSleep = AiSleepMealValidator.clampSleep(proposedSleep, computation.sleepBlock(), computation.sleepWindow());
+
+            LocalTime mainMeal = LocalTime.parse(response.meal().mainMealTime());
+            clampedMainMeal = AiSleepMealValidator.clampMainMeal(mainMeal, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd());
+            subMeal = response.meal().subMealTime() == null ? null : LocalTime.parse(response.meal().subMealTime());
+            snackTime = response.meal().snackNeeded() && response.meal().snackTime() != null
+                    ? LocalTime.parse(response.meal().snackTime())
+                    : null;
+        } catch (DateTimeParseException | NullPointerException e) {
+            log.warn("AI 응답 시각 파싱 실패, 기존 루틴을 유지하고 이번 조정은 건너뜁니다: date={}, error={}",
+                    current.getDate(), e.getMessage());
+            return false;
         }
 
-        MealBlock mb = computation.mealBlock();
-        LocalTime mainMeal = LocalTime.parse(response.meal().mainMealTime());
-        LocalTime clampedMainMeal = AiSleepMealValidator.clampMainMeal(mainMeal, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd());
-        LocalTime subMeal = response.meal().subMealTime() == null ? null : LocalTime.parse(response.meal().subMealTime());
-        LocalTime snackTime = response.meal().snackNeeded() && response.meal().snackTime() != null
-                ? LocalTime.parse(response.meal().snackTime())
-                : null;
+        if (AiSleepMealValidator.isMainSleepSuspiciouslyShort(clampedSleep, computation.sleepBlock())) {
+            log.warn("AI가 제안한 주수면이 규칙 기반 초안보다 80% 미만으로 짧아 규칙 기반 초안을 대신 사용합니다: date={}", current.getDate());
+            clampedSleep = computation.sleepBlock();
+        }
+
         if (snackTime != null) {
             long toSnack = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), snackTime);
             long toSleepStart = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), clampedSleep.mainSleepStart());
@@ -232,5 +253,6 @@ public class RoutineFacade {
         current.setNapMinutes(clampedSleep.napMinutes());
         current.setMealTimes(new MealTimes(clampedMainMeal, subMeal, snackTime, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd()));
         current.setAiReason(response.sleep().reason() + " / " + response.meal().reason());
+        return true;
     }
 }
