@@ -86,9 +86,7 @@ public class OnboardingController {
             @Schema(description = "근무 중 낮잠/휴식 가능 여부") boolean napAvailable,
             @Schema(description = "napAvailable=true일 때만 사용하는 가능 시간(분)", nullable = true) Integer napAvailableMinutes,
             @Schema(description = "휴무 시 리듬 선호 경향: RHYTHM_LEAN(리듬유지우선)/BALANCED(균형)/DAY_LEAN(낮생활우선)")
-            @NotNull RhythmPreference rhythmPreference,
-            @Schema(description = "근무유형(DAY/EVENING/NIGHT)별 기본 시작·종료 시각 목록. 2교대면 DAY/NIGHT만, 3교대면 EVENING까지 포함")
-            @NotNull List<ShiftTypeDefaultDto> shiftTypeDefaults
+            @NotNull RhythmPreference rhythmPreference
     ) {
     }
 
@@ -96,11 +94,14 @@ public class OnboardingController {
     }
 
     public record ScheduleRequest(
+            @Schema(description = "근무유형(DAY/EVENING/NIGHT)별 기본 시작·종료 시각 목록. /schedule/parse가 돌려준 "
+                    + "shiftTypes를 사용자가 검토/보정한 최종본을 담아 보낸다. 2교대면 DAY/NIGHT만, 3교대면 EVENING까지 포함.")
+            @NotNull List<ShiftTypeDefaultDto> shiftTypeDefaults,
             @Schema(description = """
-            날짜별 확정 근무유형 목록. AI 파싱 결과를 사용자가 검토/수정한 최종본을 담아 보낸다.
-            + 온보딩 [이 근무표로 나만의 리듬 완성하기] 버튼에 연결해 주세요.
-            BE에서 null 값을 받지 않고, default 값도 없기에 모든 값이 필수적으로 요구됩니다.
-            """)
+                    날짜별 확정 근무유형 목록. AI 파싱 결과를 사용자가 검토/수정한 최종본을 담아 보낸다.
+                    온보딩 [이 근무표로 나만의 리듬 완성하기] 버튼에 연결해 주세요.
+                    BE에서 null 값을 받지 않고, default 값도 없기에 모든 값이 필수적으로 요구됩니다.
+                    """)
             @NotNull List<ShiftDto> shifts
     ) {
     }
@@ -111,11 +112,8 @@ public class OnboardingController {
     @Operation(summary = "개인화 데이터 등록/수정", description = "온보딩 1단계. 이미 등록된 프로필이 있으면 덮어쓴다(단일세션이라 프로필은 항상 1개).")
     @PostMapping("/api/onboarding/profile")
     public OkResponse profile(@Valid @RequestBody ProfileRequest request) {
-        List<OnboardingService.ShiftTypeDefaultInput> defaults = request.shiftTypeDefaults().stream()
-                .map(d -> new OnboardingService.ShiftTypeDefaultInput(d.shiftType(), d.startTime(), d.endTime()))
-                .toList();
         onboardingService.upsertProfile(request.name(), request.commuteMinutes(), request.prepMinutes(), request.targetSleepMinutes(),
-                request.napAvailable(), request.napAvailableMinutes(), request.rhythmPreference(), defaults);
+                request.napAvailable(), request.napAvailableMinutes(), request.rhythmPreference());
         return new OkResponse(true);
     }
 
@@ -123,28 +121,37 @@ public class OnboardingController {
             summary = "근무표 확정 등록",
             description = """
                     온보딩 2단계. /api/onboarding/profile이 먼저 호출돼 있어야 한다(없으면 500).
-                    이 호출 하나로 날짜별 규칙 기반 수면/식사 초안 계산 + AI(suggest-adjustment) 개인화 조정까지
-                    한 번에 끝나고, 각 날짜의 RoutineResult(version=1)가 생성된다. 이후 /api/routines/today로
-                    오늘의 루틴을 조회할 수 있다.
-                    + 온보딩 [근무표 등록하기] 버튼에 연결해 주세요. 다만 여러명의 근무자 중 본인 행을 
+                    shiftTypeDefaults는 /schedule/parse가 돌려준 shiftTypes를 사용자가 검토/보정한 최종본이다
+                    (근무유형별 시작/종료 시각은 AI가 사진에서 읽어주는 값이지 사용자가 처음부터 입력하는 값이 아니다).
+                    이 호출 하나로 shiftTypeDefaults 저장 + 날짜별 규칙 기반 수면/식사 초안 계산 +
+                    AI(suggest-adjustment) 개인화 조정까지 한 번에 끝나고, 각 날짜의 RoutineResult(version=1)가
+                    생성된다. 이후 /api/routines/today로 오늘의 루틴을 조회할 수 있다.
+                    + 온보딩 [근무표 등록하기] 버튼에 연결해 주세요. 다만 여러명의 근무자 중 본인 행을
                     특정해야 하는 경우에는 /api/onboarding/schedule/parse -> /api/onboarding/schedule 순으로 호출되게 연결하시면 됩니다.
                     """
     )
     @PostMapping("/api/onboarding/schedule")
     public OkResponse schedule(@Valid @RequestBody ScheduleRequest request) {
+        List<OnboardingService.ShiftTypeDefaultInput> defaults = request.shiftTypeDefaults().stream()
+                .map(d -> new OnboardingService.ShiftTypeDefaultInput(d.shiftType(), d.startTime(), d.endTime()))
+                .toList();
         List<OnboardingService.ShiftInput> shifts = request.shifts().stream()
                 .map(s -> new OnboardingService.ShiftInput(s.date(), s.shiftType()))
                 .toList();
-        onboardingService.registerSchedule(shifts);
+        onboardingService.registerSchedule(defaults, shifts);
         return new OkResponse(true);
     }
 
     @Operation(
             summary = "등록된 근무표 조회",
             description = """
-                    등록된 모든 날짜의 근무유형과 유효 시각(개별 시각 지정이 없으면 근무유형 기본 시각)을 반환한다.
-                    캘린더 화면 렌더링, 날짜 클릭 후 수정 폼 초기값 채우기에 사용하면 된다.
-                    hasCustomTime=true인 날짜는 그날만 시각이 따로 지정돼 있다는 뜻이다.
+                    POST /api/onboarding/schedule로 근무표가 확정된 "이후"에만 의미 있는 조회다 — 확정 전
+                    (사진 파싱 직후 검토 단계)에는 아직 저장된 게 없어서 빈 목록이 온다.
+
+                    확정된 모든 날짜의 근무유형과 유효 시각(개별 시각 지정이 없으면 근무유형 기본 시각)을 반환한다.
+                    재실행 시 온보딩 화면에서 기존값 확인, 캘린더 화면 렌더링, 날짜 클릭 후 수정 폼(PATCH
+                    /{date}) 초기값 채우기에 사용하면 된다. hasCustomTime=true인 날짜는 그날만 시각이 따로
+                    지정돼 있다는 뜻이다.
                     """
     )
     @GetMapping("/api/onboarding/schedule")
@@ -162,10 +169,18 @@ public class OnboardingController {
     }
 
     @Operation(
-            summary = "특정 날짜 근무 수정",
+            summary = "특정 날짜 근무 수정 (이미 확정된 근무표 대상)",
             description = """
-                    캘린더에서 날짜 하나를 클릭해서 근무유형/시각을 수정할 때 쓴다. 근무표에 등록돼 있지 않은
-                    날짜면 404(SHIFT_NOT_FOUND)를 반환한다 — 새 날짜 추가가 아니라 기존 날짜 수정 전용이다.
+                    이 엔드포인트는 POST /api/onboarding/schedule로 근무표가 최소 한 번 확정된 "이후"에만
+                    쓴다 — 확정 전(사진 파싱 직후 검토 단계)에는 아직 아무것도 저장돼 있지 않으므로 이 API를
+                    호출할 대상 자체가 없다. 그 단계의 수정은 프론트가 /schedule/parse 응답 배열을 화면에서
+                    직접 고쳐서, 최종본을 POST /api/onboarding/schedule 한 번에 담아 보내면 된다(그때 비로소
+                    Shift와 RoutineResult가 생성된다).
+
+                    이 PATCH는 그렇게 이미 확정된 근무표를, 온보딩을 마친 뒤 재실행하거나 캘린더에서 날짜
+                    하나만 다시 고치고 싶을 때 쓴다. 근무표에 등록돼 있지 않은 날짜면 404(SHIFT_NOT_FOUND)를
+                    반환한다 — 새 날짜 추가가 아니라 기존 날짜 수정 전용이다.
+
                     수정 대상 날짜와 그 전후날의 루틴(RoutineResult)을 규칙 기반으로 다시 계산해서 새 버전으로
                     반영한다(모드 판정이 인접일에 영향을 주기 때문). AI 재호출은 하지 않으며, 이후
                     GET /api/routines/today를 조회할 때 체크인 트리거가 있으면 그때 AI 개인화가 다시 적용된다.

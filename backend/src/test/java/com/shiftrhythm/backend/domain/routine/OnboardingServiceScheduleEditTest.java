@@ -1,5 +1,6 @@
 package com.shiftrhythm.backend.domain.routine;
 
+import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
@@ -40,15 +41,18 @@ class OnboardingServiceScheduleEditTest {
 
     @BeforeEach
     void setUp() {
-        onboardingService.upsertProfile("테스터", 30, 30, 420, false, null, RhythmPreference.BALANCED, List.of(
-                new OnboardingService.ShiftTypeDefaultInput(ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0)),
-                new OnboardingService.ShiftTypeDefaultInput(ShiftType.NIGHT, LocalTime.of(22, 0), LocalTime.of(7, 0))
-        ));
-        onboardingService.registerSchedule(List.of(
-                new OnboardingService.ShiftInput(D0, ShiftType.DAY),
-                new OnboardingService.ShiftInput(D0.plusDays(1), ShiftType.DAY),
-                new OnboardingService.ShiftInput(D0.plusDays(2), ShiftType.DAY)
-        ));
+        onboardingService.upsertProfile("테스터", 30, 30, 420, false, null, RhythmPreference.BALANCED);
+        onboardingService.registerSchedule(
+                List.of(
+                        new OnboardingService.ShiftTypeDefaultInput(ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0)),
+                        new OnboardingService.ShiftTypeDefaultInput(ShiftType.EVENING, LocalTime.of(14, 0), LocalTime.of(22, 0)),
+                        new OnboardingService.ShiftTypeDefaultInput(ShiftType.NIGHT, LocalTime.of(22, 0), LocalTime.of(7, 0))
+                ),
+                List.of(
+                        new OnboardingService.ShiftInput(D0, ShiftType.DAY),
+                        new OnboardingService.ShiftInput(D0.plusDays(1), ShiftType.DAY),
+                        new OnboardingService.ShiftInput(D0.plusDays(2), ShiftType.DAY)
+                ));
     }
 
     @Test
@@ -70,13 +74,15 @@ class OnboardingServiceScheduleEditTest {
 
     @Test
     void editShift_changesTypeAndCustomTime_reflectedInSchedule() {
-        onboardingService.editShift(D0.plusDays(1), ShiftType.NIGHT, LocalTime.of(23, 0), LocalTime.of(8, 0));
+        // NIGHT는 다음날(D0+2)이 DAY라 "역방향 급전환"으로 막히므로(InvalidShiftTransitionException),
+        // 양방향 다 허용되는 EVENING으로 검증한다.
+        onboardingService.editShift(D0.plusDays(1), ShiftType.EVENING, LocalTime.of(15, 0), LocalTime.of(23, 0));
 
         ScheduleDayView day = onboardingService.getSchedule().stream()
                 .filter(v -> v.date().equals(D0.plusDays(1))).findFirst().orElseThrow();
-        assertThat(day.shiftType()).isEqualTo(ShiftType.NIGHT);
-        assertThat(day.startTime()).isEqualTo(LocalTime.of(23, 0));
-        assertThat(day.endTime()).isEqualTo(LocalTime.of(8, 0));
+        assertThat(day.shiftType()).isEqualTo(ShiftType.EVENING);
+        assertThat(day.startTime()).isEqualTo(LocalTime.of(15, 0));
+        assertThat(day.endTime()).isEqualTo(LocalTime.of(23, 0));
         assertThat(day.hasCustomTime()).isTrue();
     }
 
@@ -93,9 +99,10 @@ class OnboardingServiceScheduleEditTest {
 
     @Test
     void editShift_recomputesEditedDayAndNeighborsAsNewVersion() {
-        // D0/D0+1/D0+2 전부 등록 시 version=1이 생성돼 있다. 가운데 날을 NIGHT로 바꾸면
+        // D0/D0+1/D0+2 전부 등록 시 version=1이 생성돼 있다. 가운데 날을 EVENING으로 바꾸면
+        // (NIGHT는 다음날 DAY와 조합 시 InvalidShiftTransitionException이라 EVENING으로 검증)
         // 셋 다(이웃날 판정에 영향) 새 버전이 생기고, 이전 version=1은 is_current=false가 돼야 한다.
-        onboardingService.editShift(D0.plusDays(1), ShiftType.NIGHT, null, null);
+        onboardingService.editShift(D0.plusDays(1), ShiftType.EVENING, null, null);
 
         for (LocalDate date : List.of(D0, D0.plusDays(1), D0.plusDays(2))) {
             RoutineResult current = routineResultRepository
@@ -108,7 +115,7 @@ class OnboardingServiceScheduleEditTest {
             assertThat(v1.isCurrent()).isFalse();
         }
 
-        // D0+1은 NIGHT지만 다음날(D0+2)이 DAY라 안정 모드가 아니라 SHIFT_TRANSITION으로 판정된다.
+        // D0+1은 EVENING이지만 다음날(D0+2)이 DAY라 안정 모드가 아니라 SHIFT_TRANSITION으로 판정된다.
         RoutineResult editedDay = routineResultRepository
                 .findByUserProfileIdAndDateAndIsCurrentTrue(UserProfile.SINGLETON_ID, D0.plusDays(1)).orElseThrow();
         assertThat(editedDay.getMode().name()).isEqualTo("SHIFT_TRANSITION");

@@ -80,7 +80,7 @@ public class OnboardingService {
     @Transactional
     public UserProfile upsertProfile(String name, int commuteMinutes, int prepMinutes, int targetSleepMinutes,
                                       boolean napAvailable, Integer napAvailableMinutes,
-                                      RhythmPreference rhythmPreference, List<ShiftTypeDefaultInput> defaults) {
+                                      RhythmPreference rhythmPreference) {
         UserProfile profile = userProfileRepository.findById(UserProfile.SINGLETON_ID).orElseGet(UserProfile::new);
         profile.setName(name);
         profile.setCommuteMinutes(commuteMinutes);
@@ -89,21 +89,25 @@ public class OnboardingService {
         profile.setNapAvailable(napAvailable);
         profile.setNapAvailableMinutes(napAvailableMinutes);
         profile.setRhythmPreference(rhythmPreference);
-        UserProfile saved = userProfileRepository.save(profile);
-
-        shiftTypeDefaultRepository.deleteByUserProfileId(UserProfile.SINGLETON_ID);
-        shiftTypeDefaultRepository.flush();
-        for (ShiftTypeDefaultInput d : defaults) {
-            shiftTypeDefaultRepository.save(new ShiftTypeDefault(UserProfile.SINGLETON_ID, d.shiftType(), d.startTime(), d.endTime()));
-        }
-        return saved;
+        return userProfileRepository.save(profile);
     }
 
+    /**
+     * 근무유형별 기본 시작/종료 시각(defaults)은 AI(parse-schedule)가 사진에서 읽어준 shiftTypes를
+     * 사용자가 검토/보정한 최종본이다 — 온보딩 1단계(개인화 데이터)가 아니라 여기서 함께 확정한다.
+     */
     @Transactional
-    public void registerSchedule(List<ShiftInput> shifts) {
+    public void registerSchedule(List<ShiftTypeDefaultInput> defaults, List<ShiftInput> shifts) {
         Long userId = UserProfile.SINGLETON_ID;
         UserProfile profile = userProfileRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("프로필을 먼저 등록해야 합니다"));
+
+        shiftTypeDefaultRepository.deleteByUserProfileId(userId);
+        shiftTypeDefaultRepository.flush();
+        for (ShiftTypeDefaultInput d : defaults) {
+            shiftTypeDefaultRepository.save(new ShiftTypeDefault(userId, d.shiftType(), d.startTime(), d.endTime()));
+        }
+        shiftTypeDefaultRepository.flush();
 
         List<ShiftInput> sorted = shifts.stream().sorted(Comparator.comparing(ShiftInput::date)).toList();
 
