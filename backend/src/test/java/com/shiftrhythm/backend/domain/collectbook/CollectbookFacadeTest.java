@@ -72,17 +72,19 @@ class CollectbookFacadeTest {
 
     @Test
     void representativeSleepIsModeAfterRoundingTo15Minutes() {
+        // 세 기상시각 모두 같은 zone(offset -6, Chicago) 안에 들어오도록 21:30~22:30 범위에서 고른다.
         YearMonth month = YearMonth.of(2020, 5);
         LocalDate d1 = month.atDay(1);
 
-        save(d1, LocalTime.of(23, 2));               // -> 23:00
-        save(d1.plusDays(1), LocalTime.of(22, 58));   // -> 23:00
-        save(d1.plusDays(2), LocalTime.of(23, 41));   // -> 23:45
+        save(d1, LocalTime.of(22, 2));               // -> 22:00
+        save(d1.plusDays(1), LocalTime.of(21, 58));   // -> 22:00
+        save(d1.plusDays(2), LocalTime.of(22, 20));   // -> 22:15
 
         CollectbookView view = collectbookFacade.get(month);
 
         assertThat(view.zones()).hasSize(1);
-        assertThat(view.zones().get(0).representativeSleepEnd()).isEqualTo(LocalTime.of(23, 0));
+        assertThat(view.zones().get(0).city()).isEqualTo("Chicago");
+        assertThat(view.zones().get(0).representativeSleepEnd()).isEqualTo(LocalTime.of(22, 0));
     }
 
     @Test
