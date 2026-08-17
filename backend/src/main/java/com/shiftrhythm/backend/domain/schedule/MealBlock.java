@@ -8,6 +8,7 @@ import java.time.LocalTime;
 public record MealBlock(
         LocalTime bigMealCutoff,
         LocalTime nightRestrictionStart,
-        LocalTime nightRestrictionEnd
+        LocalTime nightRestrictionEnd,
+        LocalTime caffeineCutoff
 ) {
 }

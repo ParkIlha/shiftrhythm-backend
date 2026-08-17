@@ -70,7 +70,7 @@ class RoutineFacadeAiFallbackTest {
         shiftRepository.save(new Shift(UserProfile.SINGLETON_ID, DATE.plusDays(1), ShiftType.DAY, null, null));
 
         MealTimes mealTimes = new MealTimes(LocalTime.of(7, 0), null, null,
-                LocalTime.of(21, 0), LocalTime.of(0, 0), LocalTime.of(6, 0));
+                LocalTime.of(21, 0), LocalTime.of(0, 0), LocalTime.of(6, 0), LocalTime.of(18, 0));
         original = new RoutineResult(UserProfile.SINGLETON_ID, DATE, 1, true, null, RoutineMode.DAY,
                 LocalTime.of(23, 0), LocalTime.of(6, 30), null, null, null, mealTimes);
         routineResultRepository.save(original);

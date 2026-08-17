@@ -110,7 +110,7 @@ public class RoutineFacade {
         List<TimelineSegment> timeline = buildTimeline(current, computation.today());
         MealTimes mt = current.getMealTimes();
         var mealConstraints = new TodayRoutineView.MealConstraintsView(
-                mt.bigMealCutoff(), mt.nightRestrictionStart(), mt.nightRestrictionEnd());
+                mt.bigMealCutoff(), mt.nightRestrictionStart(), mt.nightRestrictionEnd(), mt.caffeineCutoff());
 
         return new TodayRoutineView(date, current.getMode(), timeline, mealConstraints, current.getAiReason(), wasJustPersonalized);
     }
@@ -251,7 +251,7 @@ public class RoutineFacade {
         current.setSupplementarySleepStart(clampedSleep.supplementarySleepStart());
         current.setSupplementarySleepEnd(clampedSleep.supplementarySleepEnd());
         current.setNapMinutes(clampedSleep.napMinutes());
-        current.setMealTimes(new MealTimes(clampedMainMeal, subMeal, snackTime, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd()));
+        current.setMealTimes(new MealTimes(clampedMainMeal, subMeal, snackTime, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd(), mb.caffeineCutoff()));
         current.setAiReason(response.sleep().reason() + " / " + response.meal().reason());
         return true;
     }

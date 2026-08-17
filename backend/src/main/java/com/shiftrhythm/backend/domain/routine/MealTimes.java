@@ -8,6 +8,7 @@ public record MealTimes(
         LocalTime snackTime,
         LocalTime bigMealCutoff,
         LocalTime nightRestrictionStart,
-        LocalTime nightRestrictionEnd
+        LocalTime nightRestrictionEnd,
+        LocalTime caffeineCutoff
 ) {
 }
