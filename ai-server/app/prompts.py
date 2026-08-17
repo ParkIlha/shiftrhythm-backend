@@ -102,7 +102,11 @@ SCHEDULE_SYSTEM = GUARDRAIL + (
     "확신이 없으면 UNKNOWN + confidence low 로 정직하게 표시하라. "
     "틀린 매핑은 사용자의 수면 계획을 통째로 망가뜨리므로, 모르는 것을 모른다고 하는 편이 훨씬 낫다. "
     "표에 각 코드의 시간표(범례)가 있으면 startTime/endTime을 채우고, 없으면 비워라(추측 금지). "
-    "날짜는 '며칠(1~31)'만 읽어라 — 연·월 조립은 코드가 한다. "
+    "날짜는 표에 실제로 적힌 값을 그대로 읽어라 — 칸이 몇 번째 열인지가 아니라 '9/1', '9월 1일' 같은 "
+    "표기 자체를 읽어서 월(month, 1~12)을 채워라. 표가 두 달에 걸쳐 있으면(예: 8/28~9/3) 칸마다 실제 "
+    "해당 월을 정확히 구분해서 넣어라 — 표 앞부분이라고 다 같은 달이라 가정하지 마라. "
+    "연도가 표에 적혀 있으면(예: '2024년 9월', '2024/9/1') year를 채우고, 안 보이면 생략해라(코드가 추론한다). "
+    "요일 표기(예: '9/1(일)')가 있으면 참고해서 월 판단의 근거로 삼아도 좋다. "
     "내 행을 찾을 수 없거나 표를 신뢰성 있게 읽을 수 없으면 image_unreadable 도구를 써라(억지로 채우지 마라)."
 )
 SCHEDULE_TOOLS = [
@@ -141,10 +145,12 @@ SCHEDULE_TOOLS = [
                     "items": {
                         "type": "object",
                         "properties": {
-                            "day": {"type": "integer", "description": "며칠(1~31), 열 위치"},
+                            "day": {"type": "integer", "description": "표에 적힌 며칠(1~31)"},
+                            "month": {"type": "integer", "description": "표에 적힌 실제 월(1~12). 열 순서가 아니라 표기 그대로"},
+                            "year": {"type": "integer", "description": "표에 연도가 적혀 있으면 그 값(예: 2024). 안 보이면 생략"},
                             "shiftType": {"type": "string", "description": "그 날 코드 그대로. 쉬면 OFF"},
                         },
-                        "required": ["day", "shiftType"],
+                        "required": ["day", "month", "shiftType"],
                     },
                 },
             },
