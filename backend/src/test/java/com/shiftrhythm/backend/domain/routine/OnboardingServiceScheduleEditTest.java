@@ -7,6 +7,8 @@ import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
+import com.shiftrhythm.backend.web.CurrentUser;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,9 +41,16 @@ class OnboardingServiceScheduleEditTest {
     @Autowired
     private UserProfileRepository userProfileRepository;
 
+    @AfterEach
+    void tearDown() {
+        CurrentUser.clear();
+    }
+
     @BeforeEach
     void setUp() {
-        onboardingService.upsertProfile("테스터", 30, 30, 420, false, null, RhythmPreference.BALANCED);
+        // 헤더 없이 등록하면 새 사용자가 발급된다 — 그 id를 현재 사용자로 세팅해야 이후 호출이 같은 사용자를 본다.
+        CurrentUser.set(onboardingService
+                .upsertProfile("테스터", 30, 30, 420, false, null, RhythmPreference.BALANCED).getId());
         onboardingService.registerSchedule(
                 List.of(
                         new OnboardingService.ShiftTypeDefaultInput(ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0)),
@@ -106,18 +115,18 @@ class OnboardingServiceScheduleEditTest {
 
         for (LocalDate date : List.of(D0, D0.plusDays(1), D0.plusDays(2))) {
             RoutineResult current = routineResultRepository
-                    .findByUserProfileIdAndDateAndIsCurrentTrue(UserProfile.SINGLETON_ID, date).orElseThrow();
+                    .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), date).orElseThrow();
             assertThat(current.getVersion()).isEqualTo(2);
             assertThat(current.getReplanReason()).isEqualTo(ReplanReason.SHIFT_CHANGE);
 
             RoutineResult v1 = routineResultRepository
-                    .findByUserProfileIdAndDateAndVersion(UserProfile.SINGLETON_ID, date, 1).orElseThrow();
+                    .findByUserProfileIdAndDateAndVersion(CurrentUser.id(), date, 1).orElseThrow();
             assertThat(v1.isCurrent()).isFalse();
         }
 
         // D0+1은 EVENING이지만 다음날(D0+2)이 DAY라 안정 모드가 아니라 SHIFT_TRANSITION으로 판정된다.
         RoutineResult editedDay = routineResultRepository
-                .findByUserProfileIdAndDateAndIsCurrentTrue(UserProfile.SINGLETON_ID, D0.plusDays(1)).orElseThrow();
+                .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), D0.plusDays(1)).orElseThrow();
         assertThat(editedDay.getMode().name()).isEqualTo("SHIFT_TRANSITION");
     }
 }

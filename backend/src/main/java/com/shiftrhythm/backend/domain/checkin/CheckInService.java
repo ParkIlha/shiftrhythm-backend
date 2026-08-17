@@ -3,6 +3,7 @@ package com.shiftrhythm.backend.domain.checkin;
 import com.shiftrhythm.backend.domain.checkin.entity.DailyCheckIn;
 import com.shiftrhythm.backend.domain.checkin.repository.DailyCheckInRepository;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
+import com.shiftrhythm.backend.web.CurrentUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +50,7 @@ public class CheckInService {
     }
 
     private DailyCheckIn findOrCreate(LocalDate date) {
-        return repository.findByUserProfileIdAndDate(UserProfile.SINGLETON_ID, date)
-                .orElseGet(() -> new DailyCheckIn(UserProfile.SINGLETON_ID, date));
+        return repository.findByUserProfileIdAndDate(CurrentUser.id(), date)
+                .orElseGet(() -> new DailyCheckIn(CurrentUser.id(), date));
     }
 }

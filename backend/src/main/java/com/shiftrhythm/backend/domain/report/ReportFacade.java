@@ -8,6 +8,7 @@ import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
+import com.shiftrhythm.backend.web.CurrentUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +37,7 @@ public class ReportFacade {
     }
 
     public WeeklyReportView weekly(LocalDate from, LocalDate to) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         List<RoutineResult> currentRows = routineResultRepository
                 .findByUserProfileIdAndDateBetweenAndIsCurrentTrueOrderByDateAsc(userId, from, to);
 
@@ -55,7 +56,7 @@ public class ReportFacade {
     }
 
     public MonthlyReportView monthly(YearMonth month) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         LocalDate from = month.atDay(1);
         LocalDate to = month.atEndOfMonth();
 
@@ -80,7 +81,7 @@ public class ReportFacade {
     }
 
     public DailyReportView daily(LocalDate date) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         RoutineResult current = routineResultRepository.findByUserProfileIdAndDateAndIsCurrentTrue(userId, date)
                 .orElseThrow(() -> new RoutineNotFoundException(date));
         RoutineResult plan = routineResultRepository.findByUserProfileIdAndDateAndVersion(userId, date, 1)

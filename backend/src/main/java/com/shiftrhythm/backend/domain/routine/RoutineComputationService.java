@@ -19,6 +19,7 @@ import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.ShiftRepository;
 import com.shiftrhythm.backend.domain.schedule.repository.ShiftTypeDefaultRepository;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
+import com.shiftrhythm.backend.web.CurrentUser;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -57,7 +58,7 @@ public class RoutineComputationService {
      * delayMinutes가 주어지면(재설계 preview) 오늘 근무의 종료시각에 반영해서 계산한다.
      */
     public RoutineComputation compute(LocalDate date, Integer delayMinutes) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         UserProfile profile = userProfileRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("UserProfile이 아직 등록되지 않았습니다"));
 
