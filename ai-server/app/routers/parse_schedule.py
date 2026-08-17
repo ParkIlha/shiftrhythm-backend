@@ -25,7 +25,8 @@ def parse_schedule(req: ScheduleReq):
         return JSONResponse(status_code=422, content={
             "error": "ROW_LABEL_REQUIRED",
             "message": "근무표에 여러 명이 있어요. 본인 행을 선택해주세요",
-            "candidates": data.get("rowLabels", []),
+            # 백엔드 RowLabelRequiredBody 가 이 이름으로 읽는다. 바꾸면 행 목록이 null 이 된다.
+            "rowLabels": data.get("rowLabels", []),
         })
     if name != "extract_schedule" or not data.get("shifts"):
         return JSONResponse(status_code=422, content={"error": "IMAGE_UNREADABLE"})
