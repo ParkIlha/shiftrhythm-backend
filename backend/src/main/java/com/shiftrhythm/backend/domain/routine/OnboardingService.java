@@ -8,6 +8,7 @@ import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository
 import com.shiftrhythm.backend.domain.schedule.AiSleepMealValidator;
 import com.shiftrhythm.backend.domain.schedule.MealBlock;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
+import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
 import com.shiftrhythm.backend.domain.schedule.SleepBlock;
 import com.shiftrhythm.backend.domain.schedule.SleepWindow;
@@ -31,6 +32,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * 온보딩(개인화 설정 등록 + 근무표 등록) 서비스. 근무표 등록 시 명세 5-1 파이프라인을 수행한다:
@@ -147,6 +150,91 @@ public class OnboardingService {
                 routineResultRepository.save(r);
             }
         }
+    }
+
+    /** 등록된 근무표 전체 조회. 시각 override가 없는 날은 근무유형의 기본 시각을 대신 채워서 내려준다. */
+    @Transactional(readOnly = true)
+    public List<ScheduleDayView> getSchedule() {
+        Long userId = UserProfile.SINGLETON_ID;
+        Map<ShiftType, ShiftTypeDefault> defaults = shiftTypeDefaultRepository.findByUserProfileId(userId).stream()
+                .collect(Collectors.toMap(ShiftTypeDefault::getShiftType, d -> d));
+
+        return shiftRepository.findByUserProfileIdOrderByDateAsc(userId).stream()
+                .map(s -> toScheduleDayView(s, defaults))
+                .toList();
+    }
+
+    private ScheduleDayView toScheduleDayView(Shift s, Map<ShiftType, ShiftTypeDefault> defaults) {
+        if (s.getShiftType() == ShiftType.OFF) {
+            return new ScheduleDayView(s.getDate(), ShiftType.OFF, null, null, false);
+        }
+        boolean hasCustomTime = s.getStartTimeOverride() != null || s.getEndTimeOverride() != null;
+        LocalTime start = s.getStartTimeOverride();
+        LocalTime end = s.getEndTimeOverride();
+        if (start == null || end == null) {
+            ShiftTypeDefault def = defaults.get(s.getShiftType());
+            if (start == null && def != null) {
+                start = def.getDefaultStartTime();
+            }
+            if (end == null && def != null) {
+                end = def.getDefaultEndTime();
+            }
+        }
+        return new ScheduleDayView(s.getDate(), s.getShiftType(), start, end, hasCustomTime);
+    }
+
+    /**
+     * 등록된 근무표 중 하루만 근무유형/시각을 수정한다. 대상 날짜와 그 전후날(모드 판정이 인접일에
+     * 의존하므로)의 RoutineResult를 규칙 기반으로 재계산해서 새 version으로 반영한다. AI 재호출은
+     * 하지 않는다(빠른 수정 용도) — 필요하면 이후 GET /api/routines/today 조회 시 체크인 트리거로
+     * AI 개인화가 다시 붙는다.
+     */
+    @Transactional
+    public void editShift(LocalDate date, ShiftType shiftType, LocalTime startTimeOverride, LocalTime endTimeOverride) {
+        Long userId = UserProfile.SINGLETON_ID;
+        userProfileRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException("프로필을 먼저 등록해야 합니다"));
+
+        Shift entity = shiftRepository.findByUserProfileIdAndDate(userId, date)
+                .orElseThrow(() -> new ShiftNotFoundException(date));
+        entity.setShiftType(shiftType);
+        entity.setStartTimeOverride(shiftType == ShiftType.OFF ? null : startTimeOverride);
+        entity.setEndTimeOverride(shiftType == ShiftType.OFF ? null : endTimeOverride);
+        shiftRepository.save(entity);
+        shiftRepository.flush();
+
+        List<LocalDate> affected = List.of(date.minusDays(1), date, date.plusDays(1)).stream()
+                .filter(d -> shiftRepository.findByUserProfileIdAndDate(userId, d).isPresent())
+                .sorted()
+                .toList();
+        for (LocalDate d : affected) {
+            recomputeDay(userId, d);
+        }
+    }
+
+    private void recomputeDay(Long userId, LocalDate date) {
+        RoutineComputation computation = computationService.compute(date);
+        SleepBlock sb = computation.sleepBlock();
+        MealBlock mb = computation.mealBlock();
+        MealTimes mealTimes = new MealTimes(null, null, null,
+                mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd(), mb.caffeineCutoff());
+
+        Optional<RoutineResult> existingCurrent = routineResultRepository.findByUserProfileIdAndDateAndIsCurrentTrue(userId, date);
+        int newVersion = routineResultRepository.findFirstByUserProfileIdAndDateOrderByVersionDesc(userId, date)
+                .map(r -> r.getVersion() + 1)
+                .orElse(1);
+        ReplanReason reason = existingCurrent.isPresent() ? ReplanReason.SHIFT_CHANGE : null;
+
+        existingCurrent.ifPresent(prev -> {
+            prev.setCurrent(false);
+            routineResultRepository.save(prev);
+        });
+
+        RoutineResult next = new RoutineResult(userId, date, newVersion, true, reason, computation.mode(),
+                sb.mainSleepStart(), sb.mainSleepEnd(), sb.supplementarySleepStart(), sb.supplementarySleepEnd(),
+                sb.napMinutes(), mealTimes);
+        routineResultRepository.save(next);
+        routineResultRepository.flush();
     }
 
     private SuggestAdjustmentRequest buildSuggestRequest(UserProfile profile, RoutineComputation computation,

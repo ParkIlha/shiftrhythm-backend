@@ -5,6 +5,7 @@ import com.shiftrhythm.backend.domain.routine.PreviewExpiredException;
 import com.shiftrhythm.backend.domain.routine.RoutineNotFoundException;
 import com.shiftrhythm.backend.domain.routine.RowLabelRequiredException;
 import com.shiftrhythm.backend.domain.schedule.InvalidShiftTransitionException;
+import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -41,6 +42,11 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(RoutineNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleRoutineNotFound(RoutineNotFoundException e) {
+        return ResponseEntity.notFound().build();
+    }
+
+    @ExceptionHandler(ShiftNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleShiftNotFound(ShiftNotFoundException e) {
         return ResponseEntity.notFound().build();
     }
 }

@@ -5,6 +5,7 @@ import com.shiftrhythm.backend.domain.ai.dto.ParseScheduleRequest;
 import com.shiftrhythm.backend.domain.ai.dto.ParseScheduleResponse;
 import com.shiftrhythm.backend.domain.routine.OnboardingService;
 import com.shiftrhythm.backend.domain.routine.ParseFailedException;
+import com.shiftrhythm.backend.domain.routine.ScheduleDayView;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +15,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -131,6 +136,47 @@ public class OnboardingController {
                 .map(s -> new OnboardingService.ShiftInput(s.date(), s.shiftType()))
                 .toList();
         onboardingService.registerSchedule(shifts);
+        return new OkResponse(true);
+    }
+
+    @Operation(
+            summary = "등록된 근무표 조회",
+            description = """
+                    등록된 모든 날짜의 근무유형과 유효 시각(개별 시각 지정이 없으면 근무유형 기본 시각)을 반환한다.
+                    캘린더 화면 렌더링, 날짜 클릭 후 수정 폼 초기값 채우기에 사용하면 된다.
+                    hasCustomTime=true인 날짜는 그날만 시각이 따로 지정돼 있다는 뜻이다.
+                    """
+    )
+    @GetMapping("/api/onboarding/schedule")
+    public List<ScheduleDayView> getSchedule() {
+        return onboardingService.getSchedule();
+    }
+
+    public record EditShiftRequest(
+            @Schema(description = "드롭다운으로 선택: DAY/EVENING/NIGHT/OFF") @NotNull ShiftType shiftType,
+            @Schema(description = "시작 시각. OFF면 무시된다. 생략하면 그 근무유형의 기본 시작 시각을 따른다.", nullable = true)
+            LocalTime startTime,
+            @Schema(description = "종료 시각. OFF면 무시된다. 생략하면 그 근무유형의 기본 종료 시각을 따른다.", nullable = true)
+            LocalTime endTime
+    ) {
+    }
+
+    @Operation(
+            summary = "특정 날짜 근무 수정",
+            description = """
+                    캘린더에서 날짜 하나를 클릭해서 근무유형/시각을 수정할 때 쓴다. 근무표에 등록돼 있지 않은
+                    날짜면 404(SHIFT_NOT_FOUND)를 반환한다 — 새 날짜 추가가 아니라 기존 날짜 수정 전용이다.
+                    수정 대상 날짜와 그 전후날의 루틴(RoutineResult)을 규칙 기반으로 다시 계산해서 새 버전으로
+                    반영한다(모드 판정이 인접일에 영향을 주기 때문). AI 재호출은 하지 않으며, 이후
+                    GET /api/routines/today를 조회할 때 체크인 트리거가 있으면 그때 AI 개인화가 다시 적용된다.
+                    """
+    )
+    @PatchMapping("/api/onboarding/schedule/{date}")
+    public OkResponse editShift(
+            @Schema(description = "수정할 날짜, ISO-8601 (예: 2026-08-20)")
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Valid @RequestBody EditShiftRequest request) {
+        onboardingService.editShift(date, request.shiftType(), request.startTime(), request.endTime());
         return new OkResponse(true);
     }
 }
