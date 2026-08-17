@@ -129,4 +129,23 @@ class OnboardingServiceScheduleEditTest {
                 .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), D0.plusDays(1)).orElseThrow();
         assertThat(editedDay.getMode().name()).isEqualTo("SHIFT_TRANSITION");
     }
+
+    @Test
+    void registerSchedule_calledAgainWithAlreadyRegisteredDate_upsertsInsteadOfThrowing() {
+        // D0는 setUp에서 이미 등록됨(version=1). 같은 날짜를 포함해서 registerSchedule을 다시 호출하면
+        // 유니크 제약(user_profile_id, date, version) 위반 500 대신 새 version으로 upsert돼야 한다.
+        onboardingService.registerSchedule(
+                List.of(new OnboardingService.ShiftTypeDefaultInput(ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0))),
+                List.of(new OnboardingService.ShiftInput(D0, ShiftType.DAY))
+        );
+
+        RoutineResult current = routineResultRepository
+                .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), D0).orElseThrow();
+        assertThat(current.getVersion()).isEqualTo(2);
+        assertThat(current.getReplanReason()).isEqualTo(ReplanReason.SHIFT_CHANGE);
+
+        RoutineResult v1 = routineResultRepository
+                .findByUserProfileIdAndDateAndVersion(CurrentUser.id(), D0, 1).orElseThrow();
+        assertThat(v1.isCurrent()).isFalse();
+    }
 }

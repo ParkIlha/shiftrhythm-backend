@@ -15,6 +15,8 @@ import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
 import com.shiftrhythm.backend.web.CurrentUser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class ReplanFacade {
 
+    private static final Logger log = LoggerFactory.getLogger(ReplanFacade.class);
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final long TTL_MINUTES = 5;
     private static final int SNACK_BEFORE_SLEEP_MINUTES = 60;
@@ -130,7 +133,7 @@ public class ReplanFacade {
 
         SleepBlock sb = cached.finalSleep();
         RoutineResult next = new RoutineResult(userId, cached.date(), newVersion, true,
-                ReplanReason.valueOf(cached.disruption().reasonCategory()), cached.mode(),
+                parseReplanReason(cached.disruption().reasonCategory()), cached.mode(),
                 sb.mainSleepStart(), sb.mainSleepEnd(), sb.supplementarySleepStart(), sb.supplementarySleepEnd(),
                 sb.napMinutes(), cached.finalMeal());
         next.setAiReason(cached.suggestion() == null ? null
@@ -139,6 +142,20 @@ public class ReplanFacade {
         routineResultRepository.save(next);
 
         return new ConfirmResult(true, cached.date(), newVersion);
+    }
+
+    /**
+     * AI가 ReplanReason enum에 없는 값을 보내면(계약 드리프트) valueOf가 IllegalArgumentException을
+     * 던져 confirm 전체가 500으로 죽는다. AI 응답 파싱 실패를 폴백으로 흡수하는 다른 지점들과 동일하게,
+     * 알 수 없는 값은 OTHER로 떨어뜨리고 로그만 남긴다.
+     */
+    private ReplanReason parseReplanReason(String reasonCategory) {
+        try {
+            return ReplanReason.valueOf(reasonCategory);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("AI가 알 수 없는 reasonCategory를 반환해 OTHER로 대체합니다: {}", reasonCategory);
+            return ReplanReason.OTHER;
+        }
     }
 
     private SuggestAdjustmentRequest buildSuggestRequest(UserProfile profile, RoutineComputation computation) {
