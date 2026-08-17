@@ -53,16 +53,6 @@ public class JetlagService {
             offsetByDate.put(r.getDate(), JetlagMapper.offsetOf(r.getSleepEnd()));
         }
 
-        long total = 0;
-        LocalDate cursor = monday;
-        while (!cursor.isAfter(date)) {
-            Integer todayOffset = offsetByDate.get(cursor);
-            Integer prevOffset = offsetByDate.get(cursor.minusDays(1));
-            if (todayOffset != null && prevOffset != null) {
-                total += Math.abs(todayOffset - prevOffset);
-            }
-            cursor = cursor.plusDays(1);
-        }
-        return total;
+        return DailyTravelCalculator.calculate(monday, date, offsetByDate).totalHours();
     }
 }

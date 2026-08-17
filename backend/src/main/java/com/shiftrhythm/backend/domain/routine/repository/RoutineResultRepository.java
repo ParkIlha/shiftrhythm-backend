@@ -27,4 +27,7 @@ public interface RoutineResultRepository extends JpaRepository<RoutineResult, Lo
     /** 재계획으로 생성된(version>1) 행만 조회 — 리포트의 재계획 집계용. */
     List<RoutineResult> findByUserProfileIdAndDateBetweenAndVersionGreaterThanOrderByDateAscVersionAsc(
             Long userProfileId, LocalDate from, LocalDate to, int version);
+
+    /** date 이전의 모든 is_current 행 — 콜렉트북 NEW 시간대 판정(이전에 경험한 zone인지 스캔)용. */
+    List<RoutineResult> findByUserProfileIdAndDateBeforeAndIsCurrentTrueOrderByDateAsc(Long userProfileId, LocalDate date);
 }
