@@ -5,15 +5,21 @@ from pydantic import BaseModel
 # --- B-1 parse-schedule ---
 class ScheduleReq(BaseModel):
     imageBase64: str
+    # 아래 3개는 백엔드 온보딩이 아직 안 보내므로 선택값. 없으면:
+    #   myRowLabel 없음 → 표에 행이 하나뿐일 때만 정상(여러 명이면 422)
+    #   year/month 없음 → 오늘 기준 연/월로 조립
+    myRowLabel: str | None = None
+    year: int | None = None
+    month: int | None = None
 
 class ShiftTypeDef(BaseModel):
-    shiftType: str   # DAY | EVENING | NIGHT
-    startTime: str   # HH:MM
-    endTime: str
+    shiftType: str                # 표에 적힌 코드 그대로 (D, 주간, 1조 ...). enum 아님
+    startTime: str | None = None  # 표에 시간표(범례) 있으면 채움, 없으면 null → 앱이 나중에 물어봄
+    endTime: str | None = None
 
 class ShiftDay(BaseModel):
-    date: str        # YYYY-MM-DD
-    shiftType: str   # DAY | EVENING | NIGHT | OFF
+    date: str        # YYYY-MM-DD (백엔드가 year+month+day 로 조립)
+    shiftType: str   # 코드 그대로. 쉬는 날은 "OFF"
 
 class ScheduleRes(BaseModel):
     shiftTypes: list[ShiftTypeDef]
@@ -37,16 +43,23 @@ class DisruptionRes(BaseModel):
     reasonCategory: str     # LATE_CLOCKOUT | DINNER_GATHERING | SHIFT_CHANGE | OTHER
 
 
-# --- B-3 suggest-adjustment ---
-class SleepBlock(BaseModel):
+# --- B-3 suggest-adjustment (백엔드 DTO 기준: 절대시각 in/out) ---
+class SleepWindow(BaseModel):
+    """AI가 절대 넘을 수 없는 하드 제약."""
     earliestSleepStart: str
-    latestSleepStart: str
-    minSleepDurationMinutes: int
-    ankerSleepRequired: bool
+    latestSleepEnd: str
+
+class CurrentSleepBlock(BaseModel):
+    """규칙 기반 초안 — AI는 이 안에서 재배치한다."""
+    mainSleepStart: str
+    mainSleepEnd: str
+    supplementarySleepStart: str | None = None
+    supplementarySleepEnd: str | None = None
+    napMinutes: int | None = None
     ankerBlockStart: str | None = None
     ankerBlockEnd: str | None = None
 
-class MealBlock(BaseModel):
+class MealConstraints(BaseModel):
     bigMealCutoff: str
     nightRestrictionStart: str
     nightRestrictionEnd: str
@@ -61,20 +74,27 @@ class History(BaseModel):
 
 class SuggestReq(BaseModel):
     mode: str
-    sleepBlock: SleepBlock
-    mealBlock: MealBlock
+    sleepWindow: SleepWindow
+    currentSleepBlock: CurrentSleepBlock
+    mealConstraints: MealConstraints
     history: History
     todayContext: str | None = None
 
-class SleepAdjust(BaseModel):
-    adjustMinutes: int
+class SleepSuggest(BaseModel):
+    mainSleepStart: str
+    mainSleepEnd: str
+    supplementarySleepStart: str | None = None
+    supplementarySleepEnd: str | None = None
+    napMinutes: int | None = None
     reason: str
 
-class MealAdjust(BaseModel):
-    adjustMinutes: int
-    snackNeeded: bool
+class MealSuggest(BaseModel):
+    mainMealTime: str
+    subMealTime: str | None = None
+    snackNeeded: bool = False
+    snackTime: str | None = None
     reason: str
 
 class SuggestRes(BaseModel):
-    sleep: SleepAdjust
-    meal: MealAdjust
+    sleep: SleepSuggest
+    meal: MealSuggest
