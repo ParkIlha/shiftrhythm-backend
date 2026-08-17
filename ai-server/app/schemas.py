@@ -13,7 +13,11 @@ class ScheduleReq(BaseModel):
     month: int | None = None
 
 class ShiftTypeDef(BaseModel):
-    shiftType: str                # 표에 적힌 코드 그대로 (D, 주간, 1조 ...). enum 아님
+    shiftType: str                # 표에 적힌 코드 그대로 (D, 주간, 1조 ...). shifts 와 잇는 키
+    # AI 가 추론한 의미. confidence 가 low 면 앱이 사용자에게 물어본다.
+    mapped: str = "UNKNOWN"       # DAY | EVENING | NIGHT | OFF | UNKNOWN
+    confidence: str = "low"       # high | medium | low
+    reason: str | None = None     # 판단 근거 한 줄 (사용자에게 보여줄 수 있음)
     startTime: str | None = None  # 표에 시간표(범례) 있으면 채움, 없으면 null → 앱이 나중에 물어봄
     endTime: str | None = None
 

@@ -95,7 +95,10 @@ SUGGEST_TOOLS = [
 SCHEDULE_SYSTEM = GUARDRAIL + (
     "\n교대근무표 사진을 읽는다(간호사·공장·경비 등 직종 무관). 표는 행=사람, 열=날짜, 칸=근무코드의 격자다. "
     "사용자가 지정한 '내 행'만 추출하고 다른 사람 행은 무시하라. "
-    "근무코드는 표에 적힌 글자 그대로 써라(D, 주간, 1조 등). 임의로 DAY/NIGHT 같은 걸로 바꾸지 마라. 쉬는 날만 'OFF'로. "
+    "근무코드(shiftType)는 표에 적힌 글자 그대로 써라(D, OF, 주간, 1조 등). 임의로 바꾸거나 정규화하지 마라. "
+    "각 코드의 의미는 mapped 에 따로 적어라 — 표 전체(범례, 하단 집계행, 사용 패턴)를 근거로 판단하라. "
+    "확신이 없으면 UNKNOWN + confidence low 로 정직하게 표시하라. "
+    "틀린 매핑은 사용자의 수면 계획을 통째로 망가뜨리므로, 모르는 것을 모른다고 하는 편이 훨씬 낫다. "
     "표에 각 코드의 시간표(범례)가 있으면 startTime/endTime을 채우고, 없으면 비워라(추측 금지). "
     "날짜는 '며칠(1~31)'만 읽어라 — 연·월 조립은 코드가 한다. "
     "내 행을 찾을 수 없거나 표를 신뢰성 있게 읽을 수 없으면 image_unreadable 도구를 써라(억지로 채우지 마라)."
@@ -109,15 +112,26 @@ SCHEDULE_TOOLS = [
             "properties": {
                 "shiftTypes": {
                     "type": "array",
-                    "description": "내 행에 등장하는 근무코드별 정의(OFF 제외). 표에 시간표 없으면 start/end 생략",
+                    "description": "내 행에 등장하는 근무코드 전부(OFF 포함). 표에 시간표 없으면 start/end 생략",
                     "items": {
                         "type": "object",
                         "properties": {
                             "shiftType": {"type": "string", "description": "표에 적힌 코드 그대로"},
+                            "mapped": {
+                                "type": "string",
+                                "enum": ["DAY", "EVENING", "NIGHT", "OFF", "UNKNOWN"],
+                                "description": "이 코드의 의미. 확신 없으면 UNKNOWN",
+                            },
+                            "confidence": {
+                                "type": "string",
+                                "enum": ["high", "medium", "low"],
+                                "description": "매핑 확신도. UNKNOWN 이면 반드시 low",
+                            },
+                            "reason": {"type": "string", "description": "판단 근거 한 줄"},
                             "startTime": {"type": "string", "description": "HH:MM, 표에 있을 때만"},
                             "endTime": {"type": "string", "description": "HH:MM, 표에 있을 때만"},
                         },
-                        "required": ["shiftType"],
+                        "required": ["shiftType", "mapped", "confidence", "reason"],
                     },
                 },
                 "shifts": {
@@ -141,6 +155,9 @@ SCHEDULE_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
+                # ponytail: 라벨만 준다. 행별 근무 미리보기(이름 가려진 표 대응)를 중첩 스키마로
+                # 시도했더니 40행 격자에서 모델이 빈 배열/평탄화된 배열을 냈다. 필요해지면
+                # 2단계 호출(행 선택 후 해당 행만 재조회)로 풀 것.
                 "rowLabels": {
                     "type": "array",
                     "description": "표에서 읽은 행 라벨 목록 (사용자가 고를 수 있게)",
