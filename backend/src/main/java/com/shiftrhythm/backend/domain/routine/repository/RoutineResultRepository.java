@@ -19,4 +19,12 @@ public interface RoutineResultRepository extends JpaRepository<RoutineResult, Lo
             Long userProfileId, LocalDate from, LocalDate to);
 
     Optional<RoutineResult> findFirstByUserProfileIdAndDateOrderByVersionDesc(Long userProfileId, LocalDate date);
+
+    Optional<RoutineResult> findByUserProfileIdAndDateAndVersion(Long userProfileId, LocalDate date, int version);
+
+    List<RoutineResult> findByUserProfileIdAndDateOrderByVersionAsc(Long userProfileId, LocalDate date);
+
+    /** 재계획으로 생성된(version>1) 행만 조회 — 리포트의 재계획 집계용. */
+    List<RoutineResult> findByUserProfileIdAndDateBetweenAndVersionGreaterThanOrderByDateAscVersionAsc(
+            Long userProfileId, LocalDate from, LocalDate to, int version);
 }
