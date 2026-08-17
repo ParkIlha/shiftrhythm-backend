@@ -38,5 +38,6 @@ uvicorn app.main:app --port 8000 --reload
 
 ## 자체 점검
 ```bash
-python -m app.claude_client   # 이미지 media-type 스니핑 확인
+python -m app.claude_client                # 이미지 media-type 스니핑
+python -m app.routers.suggest_adjustment   # 시각 가드 + AI 실패 시 초안 폴백
 ```

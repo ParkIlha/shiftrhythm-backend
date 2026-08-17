@@ -73,3 +73,25 @@ def suggest_adjustment(req: SuggestReq):
             reason=meal.get("reason") or FALLBACK_REASON,
         ),
     )
+
+
+if __name__ == "__main__":
+    # ponytail 자체점검: 시각 가드 + AI 실패 시 초안 폴백
+    assert hhmm("09:00") == "09:00"
+    assert hhmm("7:30") == "07:30"           # 한자리 시 정규화
+    assert hhmm("24:00", "X") == "X"         # LocalTime.parse 가 터지는 값
+    assert hhmm("나중에", "X") == "X"
+    assert hhmm(None, "X") == "X"
+    assert hhmm(None) is None
+
+    req = SuggestReq(
+        mode="NIGHT",
+        sleepWindow={"earliestSleepStart": "07:30", "latestSleepEnd": "21:00"},
+        currentSleepBlock={"mainSleepStart": "07:30", "mainSleepEnd": "12:00"},
+        mealConstraints={"bigMealCutoff": "06:00", "nightRestrictionStart": "00:00", "nightRestrictionEnd": "06:00"},
+        history={},
+    )
+    d = _draft(req, FALLBACK_REASON)
+    assert (d.sleep.mainSleepStart, d.sleep.mainSleepEnd) == ("07:30", "12:00")
+    assert d.meal.mainMealTime == "06:00" and d.meal.snackNeeded is False
+    print("ok")
