@@ -124,7 +124,7 @@ public class OnboardingService {
             MealBlock mb = computation.mealBlock();
             RoutineResult result = new RoutineResult(userId, s.date(), 1, true, null, computation.mode(),
                     sb.mainSleepStart(), sb.mainSleepEnd(), sb.supplementarySleepStart(), sb.supplementarySleepEnd(),
-                    sb.napMinutes(), new MealTimes(null, null, null, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd()));
+                    sb.napMinutes(), new MealTimes(null, null, null, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd(), mb.caffeineCutoff()));
             routineResultRepository.save(result);
             routineResultRepository.flush();
             created.add(result);
@@ -183,7 +183,7 @@ public class OnboardingService {
     private void applyResponse(RoutineResult r, SuggestAdjustmentResponse response, RoutineComputation computation) {
         MealBlock mb = computation.mealBlock();
         if (response == null) {
-            r.setMealTimes(new MealTimes(mb.bigMealCutoff(), null, null, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd()));
+            r.setMealTimes(new MealTimes(mb.bigMealCutoff(), null, null, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd(), mb.caffeineCutoff()));
             return;
         }
 
@@ -223,7 +223,7 @@ public class OnboardingService {
         r.setSupplementarySleepStart(clampedSleep.supplementarySleepStart());
         r.setSupplementarySleepEnd(clampedSleep.supplementarySleepEnd());
         r.setNapMinutes(clampedSleep.napMinutes());
-        r.setMealTimes(new MealTimes(clampedMainMeal, subMeal, snackTime, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd()));
+        r.setMealTimes(new MealTimes(clampedMainMeal, subMeal, snackTime, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd(), mb.caffeineCutoff()));
         r.setAiReason(response.sleep().reason() + " / " + response.meal().reason());
         r.setAiUpdatedAt(LocalDateTime.now());
     }

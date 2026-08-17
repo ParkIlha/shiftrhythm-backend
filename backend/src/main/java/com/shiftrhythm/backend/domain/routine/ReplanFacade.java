@@ -188,7 +188,7 @@ public class ReplanFacade {
 
     private MealTimes resolveFinalMeal(MealBlock mealBlock, SuggestAdjustmentResponse suggestion, SleepBlock finalSleep) {
         if (suggestion == null) {
-            return new MealTimes(mealBlock.bigMealCutoff(), null, null, mealBlock.bigMealCutoff(), mealBlock.nightRestrictionStart(), mealBlock.nightRestrictionEnd());
+            return new MealTimes(mealBlock.bigMealCutoff(), null, null, mealBlock.bigMealCutoff(), mealBlock.nightRestrictionStart(), mealBlock.nightRestrictionEnd(), mealBlock.caffeineCutoff());
         }
         LocalTime mainMeal = AiSleepMealValidator.clampMainMeal(
                 LocalTime.parse(suggestion.meal().mainMealTime()),
@@ -204,7 +204,7 @@ public class ReplanFacade {
                 snackTime = finalSleep.mainSleepStart().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
             }
         }
-        return new MealTimes(mainMeal, subMeal, snackTime, mealBlock.bigMealCutoff(), mealBlock.nightRestrictionStart(), mealBlock.nightRestrictionEnd());
+        return new MealTimes(mainMeal, subMeal, snackTime, mealBlock.bigMealCutoff(), mealBlock.nightRestrictionStart(), mealBlock.nightRestrictionEnd(), mealBlock.caffeineCutoff());
     }
 
     private RoutineSnapshot snapshotOf(String mode, LocalTime sleepStart, LocalTime sleepEnd, MealTimes mealTimes) {

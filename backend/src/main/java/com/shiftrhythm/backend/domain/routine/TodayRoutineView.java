@@ -15,6 +15,6 @@ public record TodayRoutineView(
         String aiReason,
         boolean wasJustPersonalized
 ) {
-    public record MealConstraintsView(LocalTime bigMealCutoff, LocalTime nightRestrictionStart, LocalTime nightRestrictionEnd) {
+    public record MealConstraintsView(LocalTime bigMealCutoff, LocalTime nightRestrictionStart, LocalTime nightRestrictionEnd, LocalTime caffeineCutoff) {
     }
 }
