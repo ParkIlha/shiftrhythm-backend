@@ -109,7 +109,7 @@ public class RoutineComputationService {
         SleepBlockResult result = SleepBlockCalculator.calculate(ctx);
         var mealBlock = MealBlockCalculator.calculate(result.block().mainSleepStart());
 
-        return new RoutineComputation(date, mode, modeReason, today, next, result.block(), result.window(), mealBlock);
+        return new RoutineComputation(date, mode, modeReason, today, next, result.block(), result.window(), mealBlock, recentDeficit);
     }
 
     private ShiftWindow resolveWindow(Long userId, LocalDate date) {

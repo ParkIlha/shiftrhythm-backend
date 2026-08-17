@@ -1,6 +1,7 @@
 package com.shiftrhythm.backend.domain.schedule.entity;
 
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -24,6 +25,9 @@ public class UserProfile {
     @Id
     private Long id = SINGLETON_ID;
 
+    @Column(nullable = false, length = 20)
+    private String name;
+
     private int commuteMinutes;
     private int prepMinutes;
     private int targetSleepMinutes = 420;
@@ -33,8 +37,9 @@ public class UserProfile {
     @Enumerated(EnumType.STRING)
     private RhythmPreference rhythmPreference;
 
-    public UserProfile(int commuteMinutes, int prepMinutes, int targetSleepMinutes,
+    public UserProfile(String name, int commuteMinutes, int prepMinutes, int targetSleepMinutes,
                         boolean napAvailable, Integer napAvailableMinutes, RhythmPreference rhythmPreference) {
+        this.name = name;
         this.commuteMinutes = commuteMinutes;
         this.prepMinutes = prepMinutes;
         this.targetSleepMinutes = targetSleepMinutes;

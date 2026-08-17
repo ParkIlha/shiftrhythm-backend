@@ -75,10 +75,11 @@ public class OnboardingService {
     }
 
     @Transactional
-    public UserProfile upsertProfile(int commuteMinutes, int prepMinutes, int targetSleepMinutes,
+    public UserProfile upsertProfile(String name, int commuteMinutes, int prepMinutes, int targetSleepMinutes,
                                       boolean napAvailable, Integer napAvailableMinutes,
                                       RhythmPreference rhythmPreference, List<ShiftTypeDefaultInput> defaults) {
         UserProfile profile = userProfileRepository.findById(UserProfile.SINGLETON_ID).orElseGet(UserProfile::new);
+        profile.setName(name);
         profile.setCommuteMinutes(commuteMinutes);
         profile.setPrepMinutes(prepMinutes);
         profile.setTargetSleepMinutes(targetSleepMinutes);

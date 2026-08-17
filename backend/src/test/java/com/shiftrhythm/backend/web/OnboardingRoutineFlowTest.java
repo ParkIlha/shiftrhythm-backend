@@ -32,6 +32,7 @@ class OnboardingRoutineFlowTest {
     void onboardingThenTodayRoutine() throws Exception {
         String profileJson = """
                 {
+                  "name": "테스터",
                   "commuteMinutes": 30,
                   "prepMinutes": 30,
                   "targetSleepMinutes": 420,

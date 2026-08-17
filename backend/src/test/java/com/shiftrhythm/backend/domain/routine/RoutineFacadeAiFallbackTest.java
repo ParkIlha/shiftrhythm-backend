@@ -64,7 +64,7 @@ class RoutineFacadeAiFallbackTest {
 
     @BeforeEach
     void setUp() {
-        userProfileRepository.save(new UserProfile(30, 30, 420, false, null, RhythmPreference.BALANCED));
+        userProfileRepository.save(new UserProfile("테스터", 30, 30, 420, false, null, RhythmPreference.BALANCED));
         shiftTypeDefaultRepository.save(new ShiftTypeDefault(UserProfile.SINGLETON_ID, ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0)));
         shiftRepository.save(new Shift(UserProfile.SINGLETON_ID, DATE, ShiftType.DAY, null, null));
         shiftRepository.save(new Shift(UserProfile.SINGLETON_ID, DATE.plusDays(1), ShiftType.DAY, null, null));

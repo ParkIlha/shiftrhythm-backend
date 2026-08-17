@@ -17,7 +17,8 @@ public record RoutineComputation(
         ShiftWindow next,
         SleepBlock sleepBlock,
         SleepWindow sleepWindow,
-        MealBlock mealBlock
+        MealBlock mealBlock,
+        int recentSleepDeficitMinutes
 ) {
 
     public RoutineSignature signature(boolean napAvailable) {
