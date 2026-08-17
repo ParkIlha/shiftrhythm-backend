@@ -66,6 +66,7 @@ public class RoutineComputationService {
                 .toList();
 
         RoutineMode mode = ModeClassifier.classify(schedule, date);
+        String modeReason = ModeClassifier.reasonOf(schedule, date);
         ModeClassifier.OffStreak offStreak = ModeClassifier.offStreakOf(schedule, date);
 
         ShiftWindow today = resolveWindow(userId, date);
@@ -108,7 +109,7 @@ public class RoutineComputationService {
         SleepBlockResult result = SleepBlockCalculator.calculate(ctx);
         var mealBlock = MealBlockCalculator.calculate(result.block().mainSleepStart());
 
-        return new RoutineComputation(date, mode, today, next, result.block(), result.window(), mealBlock);
+        return new RoutineComputation(date, mode, modeReason, today, next, result.block(), result.window(), mealBlock, recentDeficit);
     }
 
     private ShiftWindow resolveWindow(Long userId, LocalDate date) {

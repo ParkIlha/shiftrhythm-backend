@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -73,6 +74,7 @@ public class OnboardingController {
     }
 
     public record ProfileRequest(
+            @Schema(description = "사용자 이름/닉네임, 최대 20자") @NotBlank @Size(max = 20) String name,
             @Schema(description = "출근 준비시간(분), 15분 단위 입력 권장") int commuteMinutes,
             @Schema(description = "편도 통근시간(분), 15분 단위 입력 권장") int prepMinutes,
             @Schema(description = "개인 목표 수면시간(분), 기본 420(=7시간)") int targetSleepMinutes,
@@ -107,7 +109,7 @@ public class OnboardingController {
         List<OnboardingService.ShiftTypeDefaultInput> defaults = request.shiftTypeDefaults().stream()
                 .map(d -> new OnboardingService.ShiftTypeDefaultInput(d.shiftType(), d.startTime(), d.endTime()))
                 .toList();
-        onboardingService.upsertProfile(request.commuteMinutes(), request.prepMinutes(), request.targetSleepMinutes(),
+        onboardingService.upsertProfile(request.name(), request.commuteMinutes(), request.prepMinutes(), request.targetSleepMinutes(),
                 request.napAvailable(), request.napAvailableMinutes(), request.rhythmPreference(), defaults);
         return new OkResponse(true);
     }

@@ -193,6 +193,68 @@ class ModeClassifierTest {
         assertThat(ModeClassifier.classify(schedule, D0.plusDays(2))).isEqualTo(RoutineMode.NIGHT);
     }
 
+    // ── reasonOf 검증 ──────────────────────────────────────────────────
+
+    @Test
+    void reasonOf_day_isFixedCopy() {
+        List<DaySchedule> schedule = List.of(d(0, ShiftType.DAY), d(1, ShiftType.DAY));
+        assertThat(ModeClassifier.reasonOf(schedule, D0)).contains("낮 근무").contains("생체시계와 근무 시간이 맞아");
+    }
+
+    @Test
+    void reasonOf_evening_isFixedCopy() {
+        List<DaySchedule> schedule = List.of(d(0, ShiftType.EVENING), d(1, ShiftType.EVENING));
+        assertThat(ModeClassifier.reasonOf(schedule, D0)).contains("오후에 시작해서 밤에 끝나는").contains("긴장을 풀어");
+    }
+
+    @Test
+    void reasonOf_night_isFixedCopy() {
+        List<DaySchedule> schedule = List.of(d(0, ShiftType.NIGHT), d(1, ShiftType.NIGHT));
+        assertThat(ModeClassifier.reasonOf(schedule, D0)).contains("몸이 자라고 신호를 보내는").contains("퇴근 직후와 출근 직전");
+    }
+
+    @Test
+    void reasonOf_lastWorkDayBeforeOff_stillUsesStableModeCopy() {
+        // 근무 마지막 날도 별도 문구 없이 해당 근무유형의 고정 카피를 그대로 사용한다
+        List<DaySchedule> schedule = List.of(d(0, ShiftType.DAY), d(1, ShiftType.OFF));
+        assertThat(ModeClassifier.reasonOf(schedule, D0)).contains("낮 근무");
+    }
+
+    @Test
+    void reasonOf_transition_mentionsBothTypes() {
+        List<DaySchedule> schedule = List.of(d(0, ShiftType.DAY), d(1, ShiftType.EVENING));
+        String reason = ModeClassifier.reasonOf(schedule, D0);
+        assertThat(reason).contains("DAY").contains("EVENING").contains("생체시계는 바로 적응하지 못하니");
+    }
+
+    @Test
+    void reasonOf_offRecovery_mentionsTotalOffDays() {
+        List<DaySchedule> schedule = List.of(
+                d(-1, ShiftType.NIGHT), d(0, ShiftType.OFF), d(1, ShiftType.OFF), d(2, ShiftType.OFF), d(3, ShiftType.DAY)
+        );
+        String reason = ModeClassifier.reasonOf(schedule, D0.plusDays(1));
+        assertThat(reason).contains("3일 쉬면서").contains("회복하는 시간");
+    }
+
+    @Test
+    void reasonOf_offRhythmMaintain_mentionsNextType() {
+        List<DaySchedule> schedule = List.of(d(-1, ShiftType.DAY), d(0, ShiftType.OFF), d(1, ShiftType.DAY));
+        assertThat(ModeClassifier.reasonOf(schedule, D0)).contains("DAY").contains("리듬을 최대한 유지하는 게 좋아요");
+    }
+
+    @Test
+    void reasonOf_offRhythmShift_mentionsBothTypes() {
+        List<DaySchedule> schedule = List.of(d(-1, ShiftType.NIGHT), d(0, ShiftType.OFF), d(1, ShiftType.EVENING));
+        String reason = ModeClassifier.reasonOf(schedule, D0);
+        assertThat(reason).contains("NIGHT").contains("EVENING").contains("전환하는 휴무");
+    }
+
+    @Test
+    void reasonOf_unknownPrevAndNext_fallsBackToGenericMaintainReason() {
+        List<DaySchedule> schedule = List.of(d(0, ShiftType.OFF));
+        assertThat(ModeClassifier.reasonOf(schedule, D0)).contains("다음 근무 정보가 아직 없어");
+    }
+
     // ── offStreakOf 자체 검증 ──────────────────────────────────────────
 
     @Test

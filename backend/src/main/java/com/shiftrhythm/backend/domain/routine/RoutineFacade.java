@@ -5,6 +5,7 @@ import com.shiftrhythm.backend.domain.ai.dto.SuggestAdjustmentRequest;
 import com.shiftrhythm.backend.domain.ai.dto.SuggestAdjustmentResponse;
 import com.shiftrhythm.backend.domain.checkin.entity.DailyCheckIn;
 import com.shiftrhythm.backend.domain.checkin.repository.DailyCheckInRepository;
+import com.shiftrhythm.backend.domain.jetlag.JetlagService;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.AiSleepMealValidator;
@@ -49,17 +50,20 @@ public class RoutineFacade {
     private final UserProfileRepository userProfileRepository;
     private final RoutineComputationService computationService;
     private final AiScheduleAdapter aiScheduleAdapter;
+    private final JetlagService jetlagService;
 
     public RoutineFacade(RoutineResultRepository routineResultRepository,
                           DailyCheckInRepository dailyCheckInRepository,
                           UserProfileRepository userProfileRepository,
                           RoutineComputationService computationService,
-                          AiScheduleAdapter aiScheduleAdapter) {
+                          AiScheduleAdapter aiScheduleAdapter,
+                          JetlagService jetlagService) {
         this.routineResultRepository = routineResultRepository;
         this.dailyCheckInRepository = dailyCheckInRepository;
         this.userProfileRepository = userProfileRepository;
         this.computationService = computationService;
         this.aiScheduleAdapter = aiScheduleAdapter;
+        this.jetlagService = jetlagService;
     }
 
     /**
@@ -112,7 +116,24 @@ public class RoutineFacade {
         var mealConstraints = new TodayRoutineView.MealConstraintsView(
                 mt.bigMealCutoff(), mt.nightRestrictionStart(), mt.nightRestrictionEnd(), mt.caffeineCutoff());
 
-        return new TodayRoutineView(date, current.getMode(), timeline, mealConstraints, current.getAiReason(), wasJustPersonalized);
+        var jetlag = jetlagService.todayView(date, current.getSleepEnd(), profile.getName());
+        var sleepDeficit = new TodayRoutineView.SleepDeficitView(
+                computation.recentSleepDeficitMinutes(), sleepDeficitMessage(computation.recentSleepDeficitMinutes()));
+
+        return new TodayRoutineView(date, current.getMode(), computation.modeReason(), timeline, mealConstraints,
+                current.getAiReason(), wasJustPersonalized, jetlag, sleepDeficit);
+    }
+
+    private String sleepDeficitMessage(int deficitMinutes) {
+        if (deficitMinutes <= 0) {
+            return "최근 수면이 충분해요.";
+        }
+        long hours = deficitMinutes / 60;
+        long minutes = deficitMinutes % 60;
+        String amount = hours > 0
+                ? (minutes > 0 ? "%d시간 %d분".formatted(hours, minutes) : "%d시간".formatted(hours))
+                : "%d분".formatted(minutes);
+        return "최근 3일간 목표보다 %s 부족하게 잤어요.".formatted(amount);
     }
 
     private List<TimelineSegment> buildTimeline(RoutineResult r, ShiftWindow todayShift) {

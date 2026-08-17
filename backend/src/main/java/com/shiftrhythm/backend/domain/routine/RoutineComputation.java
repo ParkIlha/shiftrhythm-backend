@@ -12,11 +12,13 @@ import java.time.LocalDate;
 public record RoutineComputation(
         LocalDate date,
         RoutineMode mode,
+        String modeReason,
         ShiftWindow today,
         ShiftWindow next,
         SleepBlock sleepBlock,
         SleepWindow sleepWindow,
-        MealBlock mealBlock
+        MealBlock mealBlock,
+        int recentSleepDeficitMinutes
 ) {
 
     public RoutineSignature signature(boolean napAvailable) {
