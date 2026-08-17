@@ -3,6 +3,8 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
+      # 컨테이너 기본값 UTC로 두면 한국 00~09시 사이에 "오늘"이 하루 밀린다.
+      TZ: ${TZ:-Asia/Seoul}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${DB_NAME:-shiftrhythm}
       MYSQL_USER: ${DB_USERNAME:-shiftrhythm}
@@ -19,6 +21,7 @@ services:
     build: ./ai-server
     restart: unless-stopped
     environment:
+      TZ: ${TZ:-Asia/Seoul}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       AI_MODEL_VISION: ${AI_MODEL_VISION:-claude-sonnet-5}
       AI_MODEL_FAST: ${AI_MODEL_FAST:-claude-haiku-4-5-20251001}
@@ -32,6 +35,7 @@ services:
       ai-server:
         condition: service_started
     environment:
+      TZ: ${TZ:-Asia/Seoul}
       DB_HOST: db
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-shiftrhythm}

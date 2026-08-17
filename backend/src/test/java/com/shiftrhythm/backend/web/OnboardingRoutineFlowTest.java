@@ -83,6 +83,17 @@ class OnboardingRoutineFlowTest {
         mockMvc.perform(get("/api/onboarding/profile").header("X-User-Id", userId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("테스터"));
+
+        // 그날 개별 시각 지정이 없어도 근무유형 기본 종료시각(18:00)을 예정 퇴근으로 보고 지연을 잡아야 한다.
+        mockMvc.perform(post("/api/checkins/clockout")
+                        .header("X-User-Id", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"date": "%s", "actualClockOut": "19:30"}
+                                """.formatted(today)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scheduledClockOut").value("18:00:00"))
+                .andExpect(jsonPath("$.delayMinutes").value(90));
     }
 
     @Test
