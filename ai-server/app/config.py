@@ -4,3 +4,6 @@ import os
 MODEL_VISION = os.getenv("AI_MODEL_VISION", "claude-sonnet-5")          # 근무표 사진 파싱
 MODEL_FAST = os.getenv("AI_MODEL_FAST", "claude-haiku-4-5-20251001")    # 재설계/조정 (3초 안)
 MAX_TOKENS = int(os.getenv("AI_MAX_TOKENS", "1024"))
+
+# 근무표 격자는 저해상도면 행/열이 밀린다. 이보다 작으면 확대해서 보낸다.
+MIN_IMAGE_WIDTH = int(os.getenv("AI_MIN_IMAGE_WIDTH", "1800"))

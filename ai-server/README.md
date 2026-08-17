@@ -37,7 +37,22 @@ uvicorn app.main:app --port 8000 --reload
   표에 시간표가 없으면 `startTime`/`endTime`은 `null`(추측 안 함).
 
 ## 자체 점검
+API 키 없이, 요금 없이 즉시 실행:
 ```bash
-python -m app.claude_client                # 이미지 media-type 스니핑
+python -m app.claude_client                # media-type 스니핑 + 작은 이미지 확대
 python -m app.routers.suggest_adjustment   # 시각 가드 + AI 실패 시 초안 폴백
 ```
+
+## 응답 품질 점검 (eval)
+실제 Claude를 호출해 **응답 내용**이 맞는지 본다 (요금 발생):
+```bash
+python eval.py              # 전체
+python eval.py disruption   # disruption | suggest | schedule
+```
+LLM은 매번 문장이 달라 정답 비교가 불가능하므로 **불변식**만 검사한다 —
+지연시간 환산(`한 시간 반`→90), 무관 입력 거부, 수면이 `sleepWindow` 밖으로 안 나감,
+초안 대비 과도 이동 없음, 금지어 `실패` 없음, 근무표 3회 반복 시 결과 동일.
+
+> **근무표 해상도 주의:** 조밀한 격자는 저해상도면 행/열이 밀린다.
+> 600x355(28행) 실측 — 확대 전 15일 중 **11일** 불안정 → 3배 확대 후 **0일**.
+> `decode_image`가 폭 `AI_MIN_IMAGE_WIDTH`(기본 1800) 미만이면 자동 확대한다.
