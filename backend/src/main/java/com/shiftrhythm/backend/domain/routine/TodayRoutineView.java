@@ -10,6 +10,7 @@ import java.util.List;
 public record TodayRoutineView(
         LocalDate date,
         RoutineMode mode,
+        String modeReason,
         List<TimelineSegment> timeline,
         MealConstraintsView mealConstraints,
         String aiReason,

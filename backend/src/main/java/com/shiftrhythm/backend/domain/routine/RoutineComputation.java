@@ -12,6 +12,7 @@ import java.time.LocalDate;
 public record RoutineComputation(
         LocalDate date,
         RoutineMode mode,
+        String modeReason,
         ShiftWindow today,
         ShiftWindow next,
         SleepBlock sleepBlock,

@@ -33,6 +33,18 @@ public final class ModeClassifier {
     }
 
     public static RoutineMode classify(List<DaySchedule> schedule, LocalDate targetDate) {
+        return decide(schedule, targetDate).mode();
+    }
+
+    /** 오늘의 모드가 왜 이렇게 판정됐는지 사용자에게 보여줄 수 있는 한국어 한 문장. */
+    public static String reasonOf(List<DaySchedule> schedule, LocalDate targetDate) {
+        return decide(schedule, targetDate).reason();
+    }
+
+    public record Decision(RoutineMode mode, String reason) {
+    }
+
+    private static Decision decide(List<DaySchedule> schedule, LocalDate targetDate) {
         Map<LocalDate, ShiftType> byDate = schedule.stream()
                 .collect(Collectors.toMap(DaySchedule::date, DaySchedule::shiftType, (a, b) -> a));
 
@@ -45,22 +57,70 @@ public final class ModeClassifier {
         if (today != ShiftType.OFF) {
             boolean transition = tomorrow != null && tomorrow != ShiftType.OFF && tomorrow != today;
             if (transition) {
-                return RoutineMode.SHIFT_TRANSITION;
+                return new Decision(RoutineMode.SHIFT_TRANSITION, reasonOfShiftTransition(today, tomorrow));
             }
-            return stableModeOf(today);
+            return new Decision(stableModeOf(today), reasonOfStable(today));
         }
 
-        if (offStreakOf(schedule, targetDate).total() >= 2) {
-            return RoutineMode.OFF_RECOVERY;
+        OffStreak streak = offStreakOf(schedule, targetDate);
+        if (streak.total() >= 2) {
+            return new Decision(RoutineMode.OFF_RECOVERY, reasonOfOffRecovery(streak.total()));
         }
 
         ShiftType nextWork = tomorrow;
         ShiftType prevWork = findPreviousWorkShiftType(schedule, targetDate);
 
         if (prevWork == null || nextWork == null) {
-            return RoutineMode.OFF_RHYTHM_MAINTAIN;
+            return new Decision(RoutineMode.OFF_RHYTHM_MAINTAIN,
+                    "다음 근무 정보가 아직 없어 지금 리듬을 최대한 유지하는 게 좋아요.");
         }
-        return prevWork == nextWork ? RoutineMode.OFF_RHYTHM_MAINTAIN : RoutineMode.OFF_RHYTHM_SHIFT;
+        if (prevWork == nextWork) {
+            return new Decision(RoutineMode.OFF_RHYTHM_MAINTAIN, reasonOfOffRhythmMaintain(nextWork));
+        }
+        return new Decision(RoutineMode.OFF_RHYTHM_SHIFT, reasonOfOffRhythmShift(prevWork, nextWork));
+    }
+
+    private static String reasonOfStable(ShiftType type) {
+        return switch (type) {
+            case DAY -> """
+                    오늘은 낮 근무예요.
+                    몸의 생체시계와 근무 시간이 맞아 있어서 가장 자연스럽게 하루를 보낼 수 있어요.""";
+            case EVENING -> """
+                    오후에 시작해서 밤에 끝나는 날이에요.
+                    퇴근 후 각성 상태가 오래 지속되면 수면 시간이 깎이기 쉬우니, 귀가하면 최대한 빨리 긴장을 풀어주세요.""";
+            case NIGHT -> """
+                    몸이 자라고 신호를 보내는 시간에 깨어 일해야 하는 날이에요.
+                    수면을 퇴근 직후와 출근 직전으로 나눠서 자는 게 한 번에 몰아 자는 것보다 더 효율적이에요.""";
+            case OFF -> throw new IllegalStateException("OFF는 stable mode가 아님");
+        };
+    }
+
+    private static String reasonOfShiftTransition(ShiftType prev, ShiftType next) {
+        return """
+                %s에서 %s으로 바뀌는 날이에요.
+                생체시계는 바로 적응하지 못하니, 리듬을 바꾸려는 욕심보다 지금 잘 수 있는 시간을 먼저 챙기는 게 중요해요."""
+                .formatted(prev, next);
+    }
+
+    private static String reasonOfOffRhythmMaintain(ShiftType next) {
+        return """
+                %s 근무가 이어지기 때문에 리듬을 최대한 유지하는 게 좋아요.
+                지금 낮 생활로 완전히 돌아가면 복귀할 때 몸이 처음부터 다시 적응해야 해서 훨씬 힘들어져요."""
+                .formatted(next);
+    }
+
+    private static String reasonOfOffRhythmShift(ShiftType prev, ShiftType next) {
+        return """
+                %s에서 %s으로 전환하는 휴무예요.
+                한 번에 확 바꾸면 수면이 망가질 수 있으니, 매일 조금씩 다음 근무 방향으로 이동할게요."""
+                .formatted(prev, next);
+    }
+
+    private static String reasonOfOffRecovery(int totalOffDays) {
+        return """
+                %d일 쉬면서 쌓인 피로를 회복하는 시간이에요.
+                처음엔 최대한 많이 자고, 마지막 하루는 다음 근무 준비로 마무리할게요."""
+                .formatted(totalOffDays);
     }
 
     private static RoutineMode stableModeOf(ShiftType type) {

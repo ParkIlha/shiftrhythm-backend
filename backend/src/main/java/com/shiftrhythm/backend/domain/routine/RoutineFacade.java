@@ -112,7 +112,7 @@ public class RoutineFacade {
         var mealConstraints = new TodayRoutineView.MealConstraintsView(
                 mt.bigMealCutoff(), mt.nightRestrictionStart(), mt.nightRestrictionEnd(), mt.caffeineCutoff());
 
-        return new TodayRoutineView(date, current.getMode(), timeline, mealConstraints, current.getAiReason(), wasJustPersonalized);
+        return new TodayRoutineView(date, current.getMode(), computation.modeReason(), timeline, mealConstraints, current.getAiReason(), wasJustPersonalized);
     }
 
     private List<TimelineSegment> buildTimeline(RoutineResult r, ShiftWindow todayShift) {
