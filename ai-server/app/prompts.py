@@ -28,7 +28,9 @@ DISRUPTION_TOOLS = [
                 },
                 "reasonCategory": {
                     "type": "string",
-                    "enum": ["LATE_CLOCKOUT", "DINNER_GATHERING", "SHIFT_CHANGE", "OTHER"],
+                    # 백엔드 ReplanReason enum과 반드시 일치해야 한다(다르면 confirm 단계에서 500).
+                    # 회식/모임처럼 근무 자체와 무관한 개인 일정은 PERSONAL_SCHEDULE로 분류.
+                    "enum": ["LATE_CLOCKOUT", "EARLY_CLOCKOUT", "SHIFT_CHANGE", "PERSONAL_SCHEDULE", "OTHER"],
                 },
             },
             "required": ["eventType", "delayMinutes", "reasonCategory"],

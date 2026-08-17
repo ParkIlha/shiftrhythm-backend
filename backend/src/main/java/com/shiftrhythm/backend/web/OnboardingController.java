@@ -80,8 +80,8 @@ public class OnboardingController {
 
     public record ProfileRequest(
             @Schema(description = "사용자 이름/닉네임, 최대 20자") @NotBlank @Size(max = 20) String name,
-            @Schema(description = "출근 준비시간(분), 15분 단위 입력 권장") int commuteMinutes,
-            @Schema(description = "편도 통근시간(분), 15분 단위 입력 권장") int prepMinutes,
+            @Schema(description = "편도 통근시간(분), 15분 단위 입력 권장") int commuteMinutes,
+            @Schema(description = "출근 준비시간(분), 15분 단위 입력 권장") int prepMinutes,
             @Schema(description = "개인 목표 수면시간(분), 기본 420(=7시간)") int targetSleepMinutes,
             @Schema(description = "근무 중 낮잠/휴식 가능 여부") boolean napAvailable,
             @Schema(description = "napAvailable=true일 때만 사용하는 가능 시간(분)", nullable = true) Integer napAvailableMinutes,

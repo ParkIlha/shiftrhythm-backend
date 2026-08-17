@@ -130,7 +130,22 @@ public class OnboardingService {
 
             SleepBlock sb = computation.sleepBlock();
             MealBlock mb = computation.mealBlock();
-            RoutineResult result = new RoutineResult(userId, s.date(), 1, true, null, computation.mode(),
+
+            // 이미 등록된 날짜(재온보딩/근무표 갱신)면 새 version=1을 또 insert하려다 유니크 제약
+            // (user_profile_id, date, version) 위반으로 500이 나던 문제 — 기존 current를 내리고
+            // 다음 version으로 upsert한다.
+            Optional<RoutineResult> existingCurrent = routineResultRepository
+                    .findByUserProfileIdAndDateAndIsCurrentTrue(userId, s.date());
+            int newVersion = routineResultRepository.findFirstByUserProfileIdAndDateOrderByVersionDesc(userId, s.date())
+                    .map(r -> r.getVersion() + 1)
+                    .orElse(1);
+            ReplanReason reason = existingCurrent.isPresent() ? ReplanReason.SHIFT_CHANGE : null;
+            existingCurrent.ifPresent(prev -> {
+                prev.setCurrent(false);
+                routineResultRepository.save(prev);
+            });
+
+            RoutineResult result = new RoutineResult(userId, s.date(), newVersion, true, reason, computation.mode(),
                     sb.mainSleepStart(), sb.mainSleepEnd(), sb.supplementarySleepStart(), sb.supplementarySleepEnd(),
                     sb.napMinutes(), new MealTimes(null, null, null, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd(), mb.caffeineCutoff()));
             routineResultRepository.save(result);

@@ -44,7 +44,7 @@ class DisruptionRes(BaseModel):
     eventType: str
     delayMinutes: int
     confirmedAt: str        # ISO8601, 서버가 생성
-    reasonCategory: str     # LATE_CLOCKOUT | DINNER_GATHERING | SHIFT_CHANGE | OTHER
+    reasonCategory: str     # LATE_CLOCKOUT | EARLY_CLOCKOUT | SHIFT_CHANGE | PERSONAL_SCHEDULE | OTHER
 
 
 # --- B-3 suggest-adjustment (백엔드 DTO 기준: 절대시각 in/out) ---
