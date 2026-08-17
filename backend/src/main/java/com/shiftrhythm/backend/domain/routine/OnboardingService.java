@@ -18,6 +18,7 @@ import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.ShiftRepository;
 import com.shiftrhythm.backend.domain.schedule.repository.ShiftTypeDefaultRepository;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
+import com.shiftrhythm.backend.web.CurrentUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -77,11 +78,24 @@ public class OnboardingService {
     public record ShiftInput(LocalDate date, ShiftType shiftType) {
     }
 
+    /** 마이페이지용 조회. 아직 온보딩 전이면 빈 값. */
+    @Transactional(readOnly = true)
+    public Optional<UserProfile> findProfile() {
+        return userProfileRepository.findById(CurrentUser.id());
+    }
+
+    /**
+     * X-User-Id 헤더가 없으면 새 사용자를 발급한다("새로 시작하기"). 헤더가 있으면 그 프로필을 덮어쓴다
+     * (마이페이지 수정). 저장된 프로필의 id를 반환하니 컨트롤러가 그대로 클라이언트에 내려주면 된다.
+     */
     @Transactional
     public UserProfile upsertProfile(String name, int commuteMinutes, int prepMinutes, int targetSleepMinutes,
                                       boolean napAvailable, Integer napAvailableMinutes,
                                       RhythmPreference rhythmPreference) {
-        UserProfile profile = userProfileRepository.findById(UserProfile.SINGLETON_ID).orElseGet(UserProfile::new);
+        Long userId = CurrentUser.idOrNull();
+        UserProfile profile = userId == null
+                ? new UserProfile()
+                : userProfileRepository.findById(userId).orElseGet(UserProfile::new);
         profile.setName(name);
         profile.setCommuteMinutes(commuteMinutes);
         profile.setPrepMinutes(prepMinutes);
@@ -98,7 +112,7 @@ public class OnboardingService {
      */
     @Transactional
     public void registerSchedule(List<ShiftTypeDefaultInput> defaults, List<ShiftInput> shifts) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         UserProfile profile = userProfileRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("프로필을 먼저 등록해야 합니다"));
 
@@ -159,7 +173,7 @@ public class OnboardingService {
     /** 등록된 근무표 전체 조회. 시각 override가 없는 날은 근무유형의 기본 시각을 대신 채워서 내려준다. */
     @Transactional(readOnly = true)
     public List<ScheduleDayView> getSchedule() {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         Map<ShiftType, ShiftTypeDefault> defaults = shiftTypeDefaultRepository.findByUserProfileId(userId).stream()
                 .collect(Collectors.toMap(ShiftTypeDefault::getShiftType, d -> d));
 
@@ -195,7 +209,7 @@ public class OnboardingService {
      */
     @Transactional
     public void editShift(LocalDate date, ShiftType shiftType, LocalTime startTimeOverride, LocalTime endTimeOverride) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         userProfileRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("프로필을 먼저 등록해야 합니다"));
 

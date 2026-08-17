@@ -14,6 +14,7 @@ import com.shiftrhythm.backend.domain.schedule.SleepBlock;
 import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
+import com.shiftrhythm.backend.web.CurrentUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,7 +76,7 @@ public class ReplanFacade {
 
     @Transactional
     public PreviewResult preview(String rawText) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         LocalDate date = routineFacade.resolveCurrentCycleDate(LocalDateTime.now());
         RoutineResult current = routineResultRepository.findByUserProfileIdAndDateAndIsCurrentTrue(userId, date)
                 .orElseThrow(() -> new RoutineNotFoundException(date));
@@ -116,7 +117,7 @@ public class ReplanFacade {
             throw new PreviewExpiredException();
         }
 
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         RoutineResult prevCurrent = routineResultRepository
                 .findByUserProfileIdAndDateAndIsCurrentTrue(userId, cached.date())
                 .orElseThrow(() -> new RoutineNotFoundException(cached.date()));

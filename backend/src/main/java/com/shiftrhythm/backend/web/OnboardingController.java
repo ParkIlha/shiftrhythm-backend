@@ -8,6 +8,7 @@ import com.shiftrhythm.backend.domain.routine.ParseFailedException;
 import com.shiftrhythm.backend.domain.routine.ScheduleDayView;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
+import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,6 +17,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -109,12 +111,40 @@ public class OnboardingController {
     public record OkResponse(boolean ok) {
     }
 
-    @Operation(summary = "개인화 데이터 등록/수정", description = "온보딩 1단계. 이미 등록된 프로필이 있으면 덮어쓴다(단일세션이라 프로필은 항상 1개).")
+    public record ProfileResponse(boolean ok, Long userId) {
+    }
+
+    public record ProfileView(String name, int commuteMinutes, int prepMinutes, int targetSleepMinutes,
+                              boolean napAvailable, Integer napAvailableMinutes, RhythmPreference rhythmPreference) {
+    }
+
+    @Operation(
+            summary = "개인화 데이터 등록/수정",
+            description = """
+                    온보딩 1단계. 로그인이 없으므로 이 호출이 곧 사용자 발급이다.
+                    X-User-Id 헤더 없이 호출하면 새 사용자를 만들고 응답의 userId를 돌려준다 —
+                    프론트는 이 값을 localStorage에 저장해 이후 모든 요청에 X-User-Id 헤더로 붙인다.
+                    헤더를 달고 호출하면 그 사용자의 프로필을 덮어쓴다(마이페이지 수정).
+                    '새로 시작하기'는 저장된 userId를 지우고 헤더 없이 이 API를 다시 호출하는 것이다.
+                    """
+    )
     @PostMapping("/api/onboarding/profile")
-    public OkResponse profile(@Valid @RequestBody ProfileRequest request) {
-        onboardingService.upsertProfile(request.name(), request.commuteMinutes(), request.prepMinutes(), request.targetSleepMinutes(),
-                request.napAvailable(), request.napAvailableMinutes(), request.rhythmPreference());
-        return new OkResponse(true);
+    public ProfileResponse profile(@Valid @RequestBody ProfileRequest request) {
+        UserProfile saved = onboardingService.upsertProfile(request.name(), request.commuteMinutes(), request.prepMinutes(),
+                request.targetSleepMinutes(), request.napAvailable(), request.napAvailableMinutes(), request.rhythmPreference());
+        return new ProfileResponse(true, saved.getId());
+    }
+
+    @Operation(
+            summary = "프로필 조회",
+            description = "마이페이지용. X-User-Id 헤더가 가리키는 프로필을 반환한다. 아직 온보딩 전이면 204(본문 없음)."
+    )
+    @GetMapping("/api/onboarding/profile")
+    public ResponseEntity<ProfileView> getProfile() {
+        return onboardingService.findProfile()
+                .map(p -> ResponseEntity.ok(new ProfileView(p.getName(), p.getCommuteMinutes(), p.getPrepMinutes(),
+                        p.getTargetSleepMinutes(), p.isNapAvailable(), p.getNapAvailableMinutes(), p.getRhythmPreference())))
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @Operation(

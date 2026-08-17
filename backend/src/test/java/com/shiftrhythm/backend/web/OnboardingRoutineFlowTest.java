@@ -1,5 +1,6 @@
 package com.shiftrhythm.backend.web;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -42,11 +43,16 @@ class OnboardingRoutineFlowTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/onboarding/profile")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(profileJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true));
+        // 헤더 없이 등록 → 새 사용자 발급. 이후 요청은 응답으로 받은 userId를 X-User-Id로 달고 간다.
+        String userId = JsonPath.read(
+                mockMvc.perform(post("/api/onboarding/profile")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(profileJson))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.ok").value(true))
+                        .andExpect(jsonPath("$.userId").isNumber())
+                        .andReturn().getResponse().getContentAsString(),
+                "$.userId").toString();
 
         LocalDate today = LocalDate.now();
         String scheduleJson = """
@@ -64,14 +70,19 @@ class OnboardingRoutineFlowTest {
                 """.formatted(today, today.plusDays(1));
 
         mockMvc.perform(post("/api/onboarding/schedule")
+                        .header("X-User-Id", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(scheduleJson))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true));
 
-        mockMvc.perform(get("/api/routines/today"))
+        mockMvc.perform(get("/api/routines/today").header("X-User-Id", userId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mode").exists());
+
+        mockMvc.perform(get("/api/onboarding/profile").header("X-User-Id", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("테스터"));
     }
 
     @Test

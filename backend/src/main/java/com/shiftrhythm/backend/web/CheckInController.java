@@ -106,7 +106,7 @@ public class CheckInController {
         DailyCheckIn saved = checkInService.clockout(request.date(), request.actualClockOut(), request.nightHungerScore());
 
         LocalTime scheduledClockOut = shiftRepository
-                .findByUserProfileIdAndDate(UserProfile.SINGLETON_ID, request.date())
+                .findByUserProfileIdAndDate(CurrentUser.id(), request.date())
                 .map(s -> s.getEndTimeOverride())
                 .orElse(null);
         long delayMinutes = 0;

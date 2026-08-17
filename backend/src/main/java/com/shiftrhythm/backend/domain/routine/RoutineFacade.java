@@ -20,6 +20,7 @@ import com.shiftrhythm.backend.domain.schedule.TimelineBuilder;
 import com.shiftrhythm.backend.domain.schedule.TimelineSegment;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
+import com.shiftrhythm.backend.web.CurrentUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -75,7 +76,7 @@ public class RoutineFacade {
         LocalDate today = now.toLocalDate();
         if (now.toLocalTime().isBefore(LocalTime.of(6, 0))) {
             Optional<RoutineResult> yesterday = routineResultRepository
-                    .findByUserProfileIdAndDateAndIsCurrentTrue(UserProfile.SINGLETON_ID, today.minusDays(1));
+                    .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), today.minusDays(1));
             if (yesterday.isPresent() && isOvernightCycle(yesterday.get())) {
                 return today.minusDays(1);
             }
@@ -89,7 +90,7 @@ public class RoutineFacade {
 
     @Transactional
     public TodayRoutineView getToday(LocalDate date) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         RoutineResult current = routineResultRepository.findByUserProfileIdAndDateAndIsCurrentTrue(userId, date)
                 .orElseThrow(() -> new RoutineNotFoundException(date));
         UserProfile profile = userProfileRepository.findById(userId).orElseThrow();

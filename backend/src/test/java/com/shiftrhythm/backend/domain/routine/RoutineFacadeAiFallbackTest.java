@@ -15,6 +15,8 @@ import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.ShiftRepository;
 import com.shiftrhythm.backend.domain.schedule.repository.ShiftTypeDefaultRepository;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
+import com.shiftrhythm.backend.web.CurrentUser;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,20 +64,27 @@ class RoutineFacadeAiFallbackTest {
 
     private RoutineResult original;
 
+    @AfterEach
+    void tearDown() {
+        CurrentUser.clear();
+    }
+
     @BeforeEach
     void setUp() {
-        userProfileRepository.save(new UserProfile("테스터", 30, 30, 420, false, null, RhythmPreference.BALANCED));
-        shiftTypeDefaultRepository.save(new ShiftTypeDefault(UserProfile.SINGLETON_ID, ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0)));
-        shiftRepository.save(new Shift(UserProfile.SINGLETON_ID, DATE, ShiftType.DAY, null, null));
-        shiftRepository.save(new Shift(UserProfile.SINGLETON_ID, DATE.plusDays(1), ShiftType.DAY, null, null));
+        // 프로필 id는 auto-increment라 테스트마다 달라진다 — 발급받은 id를 현재 사용자로 세팅한다.
+        CurrentUser.set(userProfileRepository
+                .save(new UserProfile("테스터", 30, 30, 420, false, null, RhythmPreference.BALANCED)).getId());
+        shiftTypeDefaultRepository.save(new ShiftTypeDefault(CurrentUser.id(), ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0)));
+        shiftRepository.save(new Shift(CurrentUser.id(), DATE, ShiftType.DAY, null, null));
+        shiftRepository.save(new Shift(CurrentUser.id(), DATE.plusDays(1), ShiftType.DAY, null, null));
 
         MealTimes mealTimes = new MealTimes(LocalTime.of(7, 0), null, null,
                 LocalTime.of(21, 0), LocalTime.of(0, 0), LocalTime.of(6, 0), LocalTime.of(18, 0));
-        original = new RoutineResult(UserProfile.SINGLETON_ID, DATE, 1, true, null, RoutineMode.DAY,
+        original = new RoutineResult(CurrentUser.id(), DATE, 1, true, null, RoutineMode.DAY,
                 LocalTime.of(23, 0), LocalTime.of(6, 30), null, null, null, mealTimes);
         routineResultRepository.save(original);
 
-        DailyCheckIn checkIn = new DailyCheckIn(UserProfile.SINGLETON_ID, DATE);
+        DailyCheckIn checkIn = new DailyCheckIn(CurrentUser.id(), DATE);
         checkIn.setConditionScore(4);
         dailyCheckInRepository.save(checkIn);
     }
@@ -92,7 +101,7 @@ class RoutineFacadeAiFallbackTest {
 
         assertThat(view.wasJustPersonalized()).isFalse();
         RoutineResult stillCurrent = routineResultRepository
-                .findByUserProfileIdAndDateAndIsCurrentTrue(UserProfile.SINGLETON_ID, DATE).orElseThrow();
+                .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), DATE).orElseThrow();
         assertThat(stillCurrent.getSleepStart()).isEqualTo(LocalTime.of(23, 0));
         assertThat(stillCurrent.getSleepEnd()).isEqualTo(LocalTime.of(6, 30));
     }
@@ -109,7 +118,7 @@ class RoutineFacadeAiFallbackTest {
 
         assertThat(view.wasJustPersonalized()).isTrue();
         RoutineResult updated = routineResultRepository
-                .findByUserProfileIdAndDateAndIsCurrentTrue(UserProfile.SINGLETON_ID, DATE).orElseThrow();
+                .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), DATE).orElseThrow();
         assertThat(updated.getAiUpdatedAt()).isNotNull();
     }
 }
