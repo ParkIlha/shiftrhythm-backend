@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -32,8 +33,13 @@ import static org.mockito.Mockito.when;
 /**
  * AI 서버가 형식이 깨진 시각을 반환해도 GET /api/routines/today가 500 없이 기존 루틴을
  * 그대로 유지하는지, 정상 응답일 때는 실제로 반영되는지 검증한다.
+ *
+ * 클래스에 @Transactional을 붙여 각 테스트 메서드가 끝나면 자동 롤백되게 한다 — @BeforeEach가
+ * 매번 같은 날짜에 RoutineResult를 새로 insert하므로, 롤백 없이는 두 번째 테스트부터
+ * isCurrent=true 행이 중복되어 NonUniqueResultException이 발생한다.
  */
 @SpringBootTest
+@Transactional
 class RoutineFacadeAiFallbackTest {
 
     private static final LocalDate DATE = LocalDate.now();
