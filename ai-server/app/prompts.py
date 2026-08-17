@@ -43,34 +43,47 @@ DISRUPTION_TOOLS = [
 
 # --- B-3 suggest-adjustment ---
 SUGGEST_SYSTEM = GUARDRAIL + (
-    "\n최근 기록(컨디션·수면만족·잠들기까지 시간·야간허기)과 리듬 선호를 보고 "
-    "수면/식사를 얼마나 조정할지 '분 단위'로만 판단하라. "
-    "절대시각(예: 09:00)은 절대 반환하지 마라 — 시각은 코드가 계산한다. "
-    "reason은 사용자에게 보일 한국어 한 문장으로 자연스럽게 써라."
+    "\n규칙 기반으로 계산된 수면 초안(currentSleepBlock)이 주어진다. "
+    "최근 기록(컨디션·수면만족·잠들기까지 시간·야간허기)과 리듬 선호를 보고 그 초안을 미세 조정하라. "
+    "\n반드시 지킬 것:"
+    "\n- 모든 시각은 'HH:MM' 24시간 형식으로만 (예: 09:00, 07:30). 한 자리 시(9:00)나 24:00은 금지."
+    "\n- 수면은 sleepWindow(earliestSleepStart ~ latestSleepEnd) 밖으로 절대 나갈 수 없다."
+    "\n- 초안에서 크게 벗어나지 마라. 조정은 보통 1시간 이내가 적절하다."
+    "\n- 초안보다 수면을 짧게 만들지 마라. 조정할 근거가 없으면 초안 값을 그대로 반환하라."
+    "\n- ankerBlock이 있으면 그 구간과 최대한 겹치게 유지하라."
+    "\n- 주요식사는 bigMealCutoff 이후로 미루지 말고, "
+    "nightRestrictionStart~End 구간(야간 소화 제한)에는 배치하지 마라."
+    "\n- reason은 사용자에게 보일 한국어 한 문장으로 자연스럽게."
 )
 SUGGEST_TOOLS = [
     {
         "name": "suggest_adjustment",
-        "description": "수면/식사 조정폭(분)과 이유",
+        "description": "조정된 수면/식사 시각과 이유",
         "input_schema": {
             "type": "object",
             "properties": {
                 "sleep": {
                     "type": "object",
                     "properties": {
-                        "adjustMinutes": {"type": "integer", "description": "수면 시작 조정(분). 앞당김 음수, 미룸 양수"},
+                        "mainSleepStart": {"type": "string", "description": "HH:MM"},
+                        "mainSleepEnd": {"type": "string", "description": "HH:MM"},
+                        "supplementarySleepStart": {"type": "string", "description": "HH:MM. 초안에 있을 때만"},
+                        "supplementarySleepEnd": {"type": "string", "description": "HH:MM. 초안에 있을 때만"},
+                        "napMinutes": {"type": "integer", "description": "근무 중 파워냅(분). 없으면 생략"},
                         "reason": {"type": "string"},
                     },
-                    "required": ["adjustMinutes", "reason"],
+                    "required": ["mainSleepStart", "mainSleepEnd", "reason"],
                 },
                 "meal": {
                     "type": "object",
                     "properties": {
-                        "adjustMinutes": {"type": "integer"},
+                        "mainMealTime": {"type": "string", "description": "HH:MM, 주요 식사"},
+                        "subMealTime": {"type": "string", "description": "HH:MM, 보조 식사. 불필요하면 생략"},
                         "snackNeeded": {"type": "boolean"},
+                        "snackTime": {"type": "string", "description": "HH:MM. snackNeeded 일 때만"},
                         "reason": {"type": "string"},
                     },
-                    "required": ["adjustMinutes", "snackNeeded", "reason"],
+                    "required": ["mainMealTime", "snackNeeded", "reason"],
                 },
             },
             "required": ["sleep", "meal"],
@@ -80,26 +93,45 @@ SUGGEST_TOOLS = [
 
 # --- B-1 parse-schedule ---
 SCHEDULE_SYSTEM = GUARDRAIL + (
-    "\n근무표 사진을 읽어 교대 유형별 기본 근무시간과 날짜별 근무를 추출하라. "
-    "표를 신뢰성 있게 읽을 수 없으면 image_unreadable 도구를 써라(억지로 채우지 마라)."
+    "\n교대근무표 사진을 읽는다(간호사·공장·경비 등 직종 무관). 표는 행=사람, 열=날짜, 칸=근무코드의 격자다. "
+    "사용자가 지정한 '내 행'만 추출하고 다른 사람 행은 무시하라. "
+    "근무코드(shiftType)는 표에 적힌 글자 그대로 써라(D, OF, 주간, 1조 등). 임의로 바꾸거나 정규화하지 마라. "
+    "각 코드의 의미는 mapped 에 따로 적어라 — 표 전체(범례, 하단 집계행, 사용 패턴)를 근거로 판단하라. "
+    "확신이 없으면 UNKNOWN + confidence low 로 정직하게 표시하라. "
+    "틀린 매핑은 사용자의 수면 계획을 통째로 망가뜨리므로, 모르는 것을 모른다고 하는 편이 훨씬 낫다. "
+    "표에 각 코드의 시간표(범례)가 있으면 startTime/endTime을 채우고, 없으면 비워라(추측 금지). "
+    "날짜는 '며칠(1~31)'만 읽어라 — 연·월 조립은 코드가 한다. "
+    "내 행을 찾을 수 없거나 표를 신뢰성 있게 읽을 수 없으면 image_unreadable 도구를 써라(억지로 채우지 마라)."
 )
 SCHEDULE_TOOLS = [
     {
         "name": "extract_schedule",
-        "description": "근무표에서 교대 유형과 날짜별 근무 추출",
+        "description": "근무표에서 '내 행'의 근무코드 정의와 날짜별 근무 추출",
         "input_schema": {
             "type": "object",
             "properties": {
                 "shiftTypes": {
                     "type": "array",
+                    "description": "내 행에 등장하는 근무코드 전부(OFF 포함). 표에 시간표 없으면 start/end 생략",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "shiftType": {"type": "string", "enum": ["DAY", "EVENING", "NIGHT"]},
-                            "startTime": {"type": "string", "description": "HH:MM"},
-                            "endTime": {"type": "string", "description": "HH:MM"},
+                            "shiftType": {"type": "string", "description": "표에 적힌 코드 그대로"},
+                            "mapped": {
+                                "type": "string",
+                                "enum": ["DAY", "EVENING", "NIGHT", "OFF", "UNKNOWN"],
+                                "description": "이 코드의 의미. 확신 없으면 UNKNOWN",
+                            },
+                            "confidence": {
+                                "type": "string",
+                                "enum": ["high", "medium", "low"],
+                                "description": "매핑 확신도. UNKNOWN 이면 반드시 low",
+                            },
+                            "reason": {"type": "string", "description": "판단 근거 한 줄"},
+                            "startTime": {"type": "string", "description": "HH:MM, 표에 있을 때만"},
+                            "endTime": {"type": "string", "description": "HH:MM, 표에 있을 때만"},
                         },
-                        "required": ["shiftType", "startTime", "endTime"],
+                        "required": ["shiftType", "mapped", "confidence", "reason"],
                     },
                 },
                 "shifts": {
@@ -107,10 +139,10 @@ SCHEDULE_TOOLS = [
                     "items": {
                         "type": "object",
                         "properties": {
-                            "date": {"type": "string", "description": "YYYY-MM-DD"},
-                            "shiftType": {"type": "string", "enum": ["DAY", "EVENING", "NIGHT", "OFF"]},
+                            "day": {"type": "integer", "description": "며칠(1~31), 열 위치"},
+                            "shiftType": {"type": "string", "description": "그 날 코드 그대로. 쉬면 OFF"},
                         },
-                        "required": ["date", "shiftType"],
+                        "required": ["day", "shiftType"],
                     },
                 },
             },
@@ -118,8 +150,26 @@ SCHEDULE_TOOLS = [
         },
     },
     {
+        "name": "who_am_i",
+        "description": "표에 여러 사람의 행이 있는데 어느 행이 사용자인지 지정되지 않음",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                # ponytail: 라벨만 준다. 행별 근무 미리보기(이름 가려진 표 대응)를 중첩 스키마로
+                # 시도했더니 40행 격자에서 모델이 빈 배열/평탄화된 배열을 냈다. 필요해지면
+                # 2단계 호출(행 선택 후 해당 행만 재조회)로 풀 것.
+                "rowLabels": {
+                    "type": "array",
+                    "description": "표에서 읽은 행 라벨 목록 (사용자가 고를 수 있게)",
+                    "items": {"type": "string"},
+                },
+            },
+            "required": ["rowLabels"],
+        },
+    },
+    {
         "name": "image_unreadable",
-        "description": "근무표를 신뢰성 있게 읽을 수 없음",
+        "description": "내 행을 못 찾거나 근무표를 신뢰성 있게 읽을 수 없음",
         "input_schema": {"type": "object", "properties": {}},
     },
 ]
