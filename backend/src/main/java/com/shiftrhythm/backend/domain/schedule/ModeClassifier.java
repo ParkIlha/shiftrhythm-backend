@@ -13,12 +13,19 @@ import java.util.stream.Collectors;
  * ├─ Y → 내일도 근무일인가?
  * │      ├─ Y → 내일 근무유형 == 오늘 근무유형? → 오늘 유형 유지 : SHIFT_TRANSITION
  * │      └─ N → 오늘 유형 유지
- * └─ N → 오늘부터 이틀 이상 휴무인가?
+ * └─ N → targetDate가 속한 연속휴무 구간의 총 길이가 2일 이상인가? (offStreakOf 기준, 매일 재판정해도
+ *        구간 전체에 걸쳐 동일하게 판정되도록 구간 길이로 계산 — 마지막 날에만 다른 모드로 튀는 것을 방지)
  *        ├─ Y → OFF_RECOVERY
  *        └─ N → 휴무 전 근무유형 == 휴무 후 근무유형? → OFF_RHYTHM_MAINTAIN : OFF_RHYTHM_SHIFT
  *
  * 휴무 전 근무유형을 알 수 없는 경우(등록된 근무표 맨 앞의 OFF 구간)나 휴무 후 근무유형을 알 수 없는
  * 경우(등록된 근무표 맨 뒤)에는 OFF_RHYTHM_MAINTAIN으로 폴백한다(기준블록 없음 폴백 사용).
+ *
+ * 계약: classify()/offStreakOf()는 targetDate 기준 과거 방향으로도 탐색하므로(findPreviousWorkShiftType,
+ * offStreakOf의 역방향 스캔), 호출부는 targetDate 이전 구간이 잘리지 않은 schedule을 넘겨야 한다.
+ * 현재 유일한 호출부인 RoutineComputationService.compute()는 매번 유저의 전체 근무표를 조회해서 넘기므로
+ * 문제없지만, 향후 조회 범위를 date range로 제한하도록 최적화할 경우 이 전제가 깨져 휴무 구간 판정이
+ * 잘못될 수 있다.
  */
 public final class ModeClassifier {
 
@@ -43,7 +50,7 @@ public final class ModeClassifier {
             return stableModeOf(today);
         }
 
-        if (tomorrow == ShiftType.OFF) {
+        if (offStreakOf(schedule, targetDate).total() >= 2) {
             return RoutineMode.OFF_RECOVERY;
         }
 
