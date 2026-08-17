@@ -69,11 +69,11 @@ class JetlagServiceTest {
         assertThat(sunday.getDayOfWeek()).isEqualTo(DayOfWeek.SUNDAY);
 
         save(sunday, LocalTime.of(7, 0));   // offset 9 (지난주)
-        save(monday, LocalTime.of(22, 0));  // offset -6 -> |(-6)-9|=15
+        save(monday, LocalTime.of(22, 0));  // offset -6 -> 원형 거리 min(15, 9) = 9
 
         JetlagView view = jetlagService.todayView(monday, LocalTime.of(22, 0), "테스터");
 
-        assertThat(view.weeklyTravelHours()).isEqualTo(15);
+        assertThat(view.weeklyTravelHours()).isEqualTo(9);
     }
 
     @Test
