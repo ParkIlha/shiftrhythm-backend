@@ -38,12 +38,7 @@ class OnboardingRoutineFlowTest {
                   "targetSleepMinutes": 420,
                   "napAvailable": false,
                   "napAvailableMinutes": null,
-                  "rhythmPreference": "BALANCED",
-                  "shiftTypeDefaults": [
-                    {"shiftType": "DAY", "startTime": "09:00", "endTime": "18:00"},
-                    {"shiftType": "EVENING", "startTime": "14:00", "endTime": "22:00"},
-                    {"shiftType": "NIGHT", "startTime": "22:00", "endTime": "07:00"}
-                  ]
+                  "rhythmPreference": "BALANCED"
                 }
                 """;
 
@@ -56,6 +51,11 @@ class OnboardingRoutineFlowTest {
         LocalDate today = LocalDate.now();
         String scheduleJson = """
                 {
+                  "shiftTypeDefaults": [
+                    {"shiftType": "DAY", "startTime": "09:00", "endTime": "18:00"},
+                    {"shiftType": "EVENING", "startTime": "14:00", "endTime": "22:00"},
+                    {"shiftType": "NIGHT", "startTime": "22:00", "endTime": "07:00"}
+                  ],
                   "shifts": [
                     {"date": "%s", "shiftType": "DAY"},
                     {"date": "%s", "shiftType": "DAY"}

@@ -20,8 +20,8 @@ DELETE FROM user_profile     WHERE id = @uid;
 -- ── 프로필 ─────────────────────────────────────────────────────────
 -- 통근 30분 / 준비 30분 / 목표수면 7시간 / 근무 중 휴식 가능 30분 / 균형 선호
 INSERT INTO user_profile
-  (id, commute_minutes, prep_minutes, target_sleep_minutes, nap_available, nap_available_minutes, rhythm_preference)
-VALUES (@uid, 30, 30, 420, TRUE, 30, 'BALANCED');
+  (id, name, commute_minutes, prep_minutes, target_sleep_minutes, nap_available, nap_available_minutes, rhythm_preference)
+VALUES (@uid, '데모', 30, 30, 420, TRUE, 30, 'BALANCED');
 
 INSERT INTO shift_type_default (user_profile_id, shift_type, default_start_time, default_end_time) VALUES
   (@uid, 'DAY',     '07:00:00', '15:00:00'),
