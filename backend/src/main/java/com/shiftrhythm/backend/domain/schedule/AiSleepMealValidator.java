@@ -15,12 +15,24 @@ public final class AiSleepMealValidator {
     private AiSleepMealValidator() {
     }
 
-    public static SleepBlock clampSleep(SleepBlock proposed, SleepWindow window) {
+    /**
+     * proposed(AI 제안)를 window로 clamp하되, ruleBased(규칙 기반 초안) 기준 ±adjustToleranceMinutes
+     * 범위로도 추가 clamp한다. window만으로 clamp하면 NIGHT처럼 window 자체가 넓은 모드(13시간 등)에서
+     * AI가 초안과 무관하게 window 안 어디로든 재배치할 수 있어, "AI는 초안을 미세 조정한다"는 설계
+     * 의도가 지켜지지 않기 때문이다. 단, 앵커구간은 하드 제약이라 tolerance보다 우선해 포함시킨다.
+     */
+    public static SleepBlock clampSleep(SleepBlock proposed, SleepBlock ruleBased, SleepWindow window) {
         LocalTime earliest = window.earliestSleepStart();
         long span = SleepTimeMath.minutesBetween(earliest, window.latestSleepEnd());
+        int tolerance = proposed.adjustToleranceMinutes();
 
-        long startOff = clampOffset(SleepTimeMath.minutesBetween(earliest, proposed.mainSleepStart()), span);
-        long endOff = clampOffset(SleepTimeMath.minutesBetween(earliest, proposed.mainSleepEnd()), span);
+        long ruleStartOff = SleepTimeMath.minutesBetween(earliest, ruleBased.mainSleepStart());
+        long ruleEndOff = SleepTimeMath.minutesBetween(earliest, ruleBased.mainSleepEnd());
+
+        long startOff = clampToToleranceWindow(
+                clampOffset(SleepTimeMath.minutesBetween(earliest, proposed.mainSleepStart()), span), span, ruleStartOff, tolerance);
+        long endOff = clampToToleranceWindow(
+                clampOffset(SleepTimeMath.minutesBetween(earliest, proposed.mainSleepEnd()), span), span, ruleEndOff, tolerance);
         if (endOff < startOff) {
             endOff = startOff;
         }
@@ -79,6 +91,12 @@ public final class AiSleepMealValidator {
         long span = SleepTimeMath.minutesBetween(start, end);
         long offset = SleepTimeMath.minutesBetween(start, t);
         return offset < span;
+    }
+
+    private static long clampToToleranceWindow(long offset, long span, long ruleOffset, int tolerance) {
+        long low = Math.max(0, ruleOffset - tolerance);
+        long high = Math.min(span, ruleOffset + tolerance);
+        return Math.min(Math.max(offset, low), high);
     }
 
     private static long clampOffset(long offset, long span) {
