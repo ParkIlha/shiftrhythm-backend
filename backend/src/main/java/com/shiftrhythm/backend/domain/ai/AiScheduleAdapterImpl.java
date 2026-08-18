@@ -70,7 +70,11 @@ public class AiScheduleAdapterImpl implements AiScheduleAdapter {
                     // 근무표에 행이 여러 개라 AI가 확정 못 지은 상태 — 재시도해도 같은 응답이 돌아오므로 즉시 상위로 전달
                     throw new RowLabelRequiredException(body.rowLabels());
                 }
-                log.warn("AI 서버 호출 실패 ({}), attempt={}: {}", endpoint, attempt, e.getMessage());
+                // 422 는 AI 서버가 내린 '판정'이지 일시적 장애가 아니다(사진을 못 읽음 등).
+                // 재시도해도 같은 답이 오는데 vision 호출 비용(사진 한 장 ≈ 3000토큰)만 두 번 나가고
+                // 사용자 대기시간도 두 배가 된다. 여기서 끊는다.
+                log.warn("AI 서버가 처리 불가 응답 ({}): {}", endpoint, e.getMessage());
+                return Optional.empty();
             } catch (Exception e) {
                 log.warn("AI 서버 호출 실패 ({}), attempt={}: {}", endpoint, attempt, e.getMessage());
             }
