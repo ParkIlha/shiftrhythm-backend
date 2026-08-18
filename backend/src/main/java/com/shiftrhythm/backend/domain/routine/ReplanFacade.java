@@ -8,6 +8,7 @@ import com.shiftrhythm.backend.domain.ai.dto.SuggestAdjustmentResponse;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.AiSleepMealValidator;
+import com.shiftrhythm.backend.domain.schedule.AppClock;
 import com.shiftrhythm.backend.domain.schedule.MealBlock;
 import com.shiftrhythm.backend.domain.schedule.RoutineMode;
 import com.shiftrhythm.backend.domain.schedule.SleepBlock;
@@ -80,7 +81,7 @@ public class ReplanFacade {
     @Transactional
     public PreviewResult preview(String rawText) {
         Long userId = CurrentUser.id();
-        LocalDate date = routineFacade.resolveCurrentCycleDate(LocalDateTime.now());
+        LocalDate date = routineFacade.resolveCurrentCycleDate(AppClock.now());
         RoutineResult current = routineResultRepository.findByUserProfileIdAndDateAndIsCurrentTrue(userId, date)
                 .orElseThrow(() -> new RoutineNotFoundException(date));
         UserProfile profile = userProfileRepository.findById(userId).orElseThrow();

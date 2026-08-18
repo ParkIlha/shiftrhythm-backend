@@ -15,6 +15,8 @@ public final class TimelineBuilder {
     private TimelineBuilder() {
     }
 
+    private static final long DAY_MINUTES = 24 * 60;
+
     public static List<TimelineSegment> build(List<TimelineSegment> knownSegments) {
         List<TimelineSegment> segments = knownSegments.stream()
                 .filter(Objects::nonNull)
@@ -28,16 +30,27 @@ public final class TimelineBuilder {
                 .sorted(Comparator.comparingLong(s -> SleepTimeMath.minutesBetween(anchor, s.start())))
                 .toList();
 
+        // anchor 기준 분 단위 offset으로 다룬다. 세그먼트끼리 겹치는 경우(예: 근무 중 식사)
+        // occupiedUntil이 다음 세그먼트 시작보다 앞서지 않으므로 자유시간을 끼워넣지 않는다 —
+        // 겹침을 "거의 하루 뒤 다음 일정"으로 오인해 24시간을 훌쩍 넘기던 버그(이슈 3)의 원인이었다.
         List<TimelineSegment> result = new ArrayList<>();
-        for (int i = 0; i < ordered.size(); i++) {
-            TimelineSegment current = ordered.get(i);
-            result.add(current);
-            LocalTime nextStart = (i + 1 < ordered.size()) ? ordered.get(i + 1).start() : ordered.get(0).start();
-            long gap = SleepTimeMath.minutesBetween(current.end(), nextStart);
-            if (gap > 0) {
-                result.add(new TimelineSegment("자유시간", current.end(), nextStart));
+        long occupiedUntil = 0;
+        for (TimelineSegment seg : ordered) {
+            long segStart = SleepTimeMath.minutesBetween(anchor, seg.start());
+            long segEnd = segStart + SleepTimeMath.minutesBetween(seg.start(), seg.end());
+            if (segStart > occupiedUntil) {
+                result.add(new TimelineSegment("자유시간", plusMinutes(anchor, occupiedUntil), seg.start()));
             }
+            result.add(seg);
+            occupiedUntil = Math.max(occupiedUntil, segEnd);
+        }
+        if (occupiedUntil < DAY_MINUTES) {
+            result.add(new TimelineSegment("자유시간", plusMinutes(anchor, occupiedUntil), anchor));
         }
         return result;
+    }
+
+    private static LocalTime plusMinutes(LocalTime anchor, long minutes) {
+        return anchor.plusMinutes(minutes % DAY_MINUTES);
     }
 }
