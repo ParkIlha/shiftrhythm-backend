@@ -17,6 +17,12 @@ SHIFT_TIME_PRESETS = {
 }
 
 
+def is_month_guessed(req_month, ai_shifts):
+    """요청에 month가 없고, AI도 단 하나의 shift에서조차 month를 못 읽었으면 전부 오늘 기준
+    추측이다 — 이땐 shifts[].date의 절대 연/월을 신뢰할 수 없다는 신호로 true를 반환한다."""
+    return req_month is None and all(s.get("month") is None for s in ai_shifts)
+
+
 def fill_default_times(shift_types):
     """시각이 빈 근무코드에 교대 프리셋을 채운다(있는 값은 건드리지 않는다)."""
     preset = SHIFT_TIME_PRESETS[3 if any(t.get("mapped") == "EVENING" for t in shift_types) else 2]
@@ -64,6 +70,7 @@ def parse_schedule(req: ScheduleReq):
     # AI가 칸마다 실제 월(과 있으면 연도)을 읽어오므로, 표가 두 달에 걸쳐 있어도(예: 8/28~9/3)
     # 칸별로 올바른 달로 조립된다. 표에 월/연도가 안 적혀 있으면 요청값 → 오늘 기준으로 채운다.
     today = date.today()
+    month_guessed = is_month_guessed(req.month, data["shifts"])
     shifts = []
     for s in data["shifts"]:
         month = s.get("month") or req.month or today.month
@@ -73,7 +80,7 @@ def parse_schedule(req: ScheduleReq):
         shifts.append({"date": f"{year:04d}-{month:02d}-{s['day']:02d}", "shiftType": s["shiftType"]})
     if not shifts:
         return JSONResponse(status_code=422, content={"error": "IMAGE_UNREADABLE"})
-    return ScheduleRes(shiftTypes=fill_default_times(data["shiftTypes"]), shifts=shifts)
+    return ScheduleRes(shiftTypes=fill_default_times(data["shiftTypes"]), shifts=shifts, monthGuessed=month_guessed)
 
 
 def _infer_year(month: int, today: date) -> int:
@@ -106,4 +113,8 @@ if __name__ == "__main__":
 
     half = fill_default_times([{"shiftType": "D", "mapped": "DAY", "startTime": "07:00"}])
     assert (half[0]["startTime"], half[0]["endTime"]) == ("08:00", "20:00")   # 반쪽이면 프리셋으로
+
+    assert is_month_guessed(None, [{"month": None}, {"month": None}]) is True     # 요청도 AI도 다 없음
+    assert is_month_guessed(9, [{"month": None}, {"month": None}]) is False       # 요청에 month 있음
+    assert is_month_guessed(None, [{"month": None}, {"month": 9}]) is False       # AI가 하나라도 읽음
     print("ok")

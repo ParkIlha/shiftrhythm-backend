@@ -104,7 +104,8 @@ Spring은 `AI_SERVER_BASE_URL`(기본 `http://ai-server:8000`)을 통해 FastAPI
       "date": "YYYY-MM-DD",
       "shiftType": "DAY | EVENING | NIGHT | OFF"
     }
-  ]
+  ],
+  "monthGuessed": "boolean, true면 모든 shifts[].date의 월을 오늘 날짜 기준으로 추측한 것 — 절대 연/월을 믿지 말고 day 순서(상대 순번)만 신뢰"
 }
 ```
 

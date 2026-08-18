@@ -37,13 +37,13 @@ class JetlagServiceTest {
     @Test
     void todayView_reflectsTodaysZone() {
         LocalDate today = LocalDate.of(2026, 8, 3);
-        save(today, LocalTime.of(7, 0)); // offset 9 (Korea)
+        save(today, LocalTime.of(7, 0)); // offset 9 (한국)
 
         JetlagView view = jetlagService.todayView(today, LocalTime.of(7, 0), "테스터");
 
         assertThat(view.utcOffset()).isEqualTo(9);
-        assertThat(view.country()).isEqualTo("Korea");
-        assertThat(view.message()).contains("Korea");
+        assertThat(view.country()).isEqualTo("한국");
+        assertThat(view.message()).contains("한국");
     }
 
     @Test
@@ -66,8 +66,8 @@ class JetlagServiceTest {
         LocalDate yesterday = LocalDate.of(2026, 8, 3);
         LocalDate today = yesterday.plusDays(1);
 
-        save(yesterday, LocalTime.of(7, 0));   // offset 9 (Korea)
-        save(today, LocalTime.of(22, 0));      // offset -6 (Costa Rica) -> 원형 거리 min(15, 9) = 9
+        save(yesterday, LocalTime.of(7, 0));   // offset 9 (한국)
+        save(today, LocalTime.of(22, 0));      // offset -6 (코스타리카) -> 원형 거리 min(15, 9) = 9
 
         JetlagView view = jetlagService.todayView(today, LocalTime.of(22, 0), "테스터");
 
