@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -36,8 +37,13 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(RowLabelRequiredException.class)
     public ResponseEntity<Map<String, Object>> handleRowLabelRequired(RowLabelRequiredException e) {
-        return ResponseEntity.unprocessableEntity()
-                .body(Map.of("error", "ROW_LABEL_REQUIRED", "rowLabels", e.rowLabels()));
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "ROW_LABEL_REQUIRED");
+        body.put("rowLabels", e.rowLabels());
+        if (e.rowPreviews() != null) {
+            body.put("rowPreviews", e.rowPreviews());
+        }
+        return ResponseEntity.unprocessableEntity().body(body);
     }
 
     @ExceptionHandler(RoutineNotFoundException.class)

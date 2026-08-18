@@ -70,7 +70,7 @@ public class AiScheduleAdapterImpl implements AiScheduleAdapter {
                 RowLabelRequiredBody body = tryParseRowLabelRequired(e);
                 if (body != null) {
                     // 근무표에 행이 여러 개라 AI가 확정 못 지은 상태 — 재시도해도 같은 응답이 돌아오므로 즉시 상위로 전달
-                    throw new RowLabelRequiredException(body.rowLabels());
+                    throw new RowLabelRequiredException(body.rowLabels(), body.rowPreviews());
                 }
                 // AI가 "계획을 바꿀 일은 아니다"라고 판단하고 대신 써 보낸 답변 — 그대로 사용자에게 보여준다.
                 // parse-disruption 에만 적용한다. 다른 엔드포인트의 422 는 폴백으로 흘러가야 해서(홈 화면이
