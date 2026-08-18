@@ -5,7 +5,7 @@ import java.time.LocalTime;
 public record ZoneCard(
         int rank,
         int utcOffset,
-        String city,
+        String country,
         int livedDays,
         LocalTime representativeSleepStart,
         LocalTime representativeSleepEnd,
