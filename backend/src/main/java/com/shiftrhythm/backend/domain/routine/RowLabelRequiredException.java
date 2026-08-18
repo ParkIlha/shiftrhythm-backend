@@ -10,13 +10,19 @@ import java.util.List;
 public class RowLabelRequiredException extends RuntimeException {
 
     private final List<String> rowLabels;
+    private final List<String> rowPreviews;
 
-    public RowLabelRequiredException(List<String> rowLabels) {
+    public RowLabelRequiredException(List<String> rowLabels, List<String> rowPreviews) {
         super("ROW_LABEL_REQUIRED");
         this.rowLabels = rowLabels;
+        this.rowPreviews = rowPreviews;
     }
 
     public List<String> rowLabels() {
         return rowLabels;
+    }
+
+    public List<String> rowPreviews() {
+        return rowPreviews;
     }
 }

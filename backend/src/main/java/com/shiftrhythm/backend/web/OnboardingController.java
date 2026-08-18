@@ -65,8 +65,11 @@ public class OnboardingController {
                     + 확인 화면에서 사용자에게 물어보는 게 좋다.
                     + 근무표에 시간표(범례)가 없으면 startTime/endTime은 AI가 추측하지 않고 교대 프리셋
                     + 기본값이 들어간다(3교대 06-14/14-22/22-06, 2교대 08-20/20-08).
-                    사진에 여러 명의 행이 있어 AI가 본인 행을 특정하지 못하면 422 { "error": "ROW_LABEL_REQUIRED", "rowLabels": [...] }
-                    를 반환하니, 이 경우 rowLabels를 사용자에게 보여주고 고른 값을 myRowLabel에 담아 재호출한다.
+                    사진에 여러 명의 행이 있어 AI가 본인 행을 특정하지 못하면 422 { "error": "ROW_LABEL_REQUIRED", "rowLabels": [...], "rowPreviews": [...] }
+                    를 반환하니, 이 경우 rowLabels를 사용자에게 보여주고 고른 값을 myRowLabel에 담아 재호출한다. rowPreviews는
+                    rowLabels와 같은 순서·길이의 행별 근무 패턴 요약 문자열(예: "N N OFF OFF N N OFF")이라 이름 옆에 같이
+                    보여주면 본인 행을 더 쉽게 찾을 수 있다 — 길이가 안 맞으면 rowPreviews 자체가 응답에서 빠질 수 있으니
+                    없는 경우(null)엔 이름만 보여주면 된다.
                     이 엔드포인트는 파싱 결과만 반환하며 DB에 아무것도 저장하지 않는다 — 사용자가 결과를 검토/수정한 뒤
                     /api/onboarding/schedule로 최종 확정해야 한다.
                     + 온보딩 [근무표 불러오기] 버튼에 연결해 주세요. 
