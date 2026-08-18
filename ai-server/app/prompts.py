@@ -54,8 +54,13 @@ SUGGEST_SYSTEM = GUARDRAIL + (
     "\n- 초안에서 크게 벗어나지 마라. 조정은 보통 1시간 이내가 적절하다."
     "\n- 초안보다 수면을 짧게 만들지 마라. 조정할 근거가 없으면 초안 값을 그대로 반환하라."
     "\n- ankerBlock이 있으면 그 구간과 최대한 겹치게 유지하라."
-    "\n- 주요식사는 bigMealCutoff 이후로 미루지 말고, "
-    "nightRestrictionStart~End 구간(야간 소화 제한)에는 배치하지 마라."
+    "\n- 주요식사(큰 식사)는 bigMealCutoff 이후로 미루지 마라."
+    "\n- nightRestrictionStart~End 는 생체 야간(소화 능력이 가장 낮은 구간)이다. "
+    "이 구간에 배치하지 말아야 하는 건 주요식사뿐이다 — 그 시간에 깨어 근무 중이라면 굶기지 말고 "
+    "subMealTime 으로 가벼운 식사를 넣어라. 야간근무 중 가벼운 식사는 권장된다."
+    "\n- 주요식사와 주수면 시작 사이가 6시간 넘게 벌어지면 그 사이에 subMealTime 을 넣어라."
+    "\n- recentNightHunger 가 높으면(평균 4 이상) snackNeeded=true 로 두고 "
+    "취침 1시간 전쯤으로 snackTime 을 잡아라. 그렇지 않으면 굳이 넣지 마라."
     "\n- reason은 사용자에게 보일 한국어 한 문장으로 자연스럽게."
 )
 SUGGEST_TOOLS = [
