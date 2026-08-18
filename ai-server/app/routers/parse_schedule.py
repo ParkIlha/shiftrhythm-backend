@@ -8,6 +8,23 @@ from app import prompts
 
 router = APIRouter()
 
+# 표에 범례가 없어 AI가 시각을 못 읽었을 때 채워 보내는 기본값(백엔드 shiftTypeDefaults 는 시각이
+# 필수라 null 이면 확정 단계에서 막힌다). AI 에게 추측시키지 않고 코드가 결정론적으로 채운다.
+# 표에 EVENING 이 있으면 3교대, 없으면 2교대로 본다. OFF/UNKNOWN 은 그대로 null.
+SHIFT_TIME_PRESETS = {
+    2: {"DAY": ("08:00", "20:00"), "NIGHT": ("20:00", "08:00")},
+    3: {"DAY": ("06:00", "14:00"), "EVENING": ("14:00", "22:00"), "NIGHT": ("22:00", "06:00")},
+}
+
+
+def fill_default_times(shift_types):
+    """시각이 빈 근무코드에 교대 프리셋을 채운다(있는 값은 건드리지 않는다)."""
+    preset = SHIFT_TIME_PRESETS[3 if any(t.get("mapped") == "EVENING" for t in shift_types) else 2]
+    for t in shift_types:
+        if not (t.get("startTime") and t.get("endTime")) and t.get("mapped") in preset:
+            t["startTime"], t["endTime"] = preset[t["mapped"]]
+    return shift_types
+
 
 @router.post("/parse-schedule")
 def parse_schedule(req: ScheduleReq):
@@ -49,7 +66,7 @@ def parse_schedule(req: ScheduleReq):
         shifts.append({"date": f"{year:04d}-{month:02d}-{s['day']:02d}", "shiftType": s["shiftType"]})
     if not shifts:
         return JSONResponse(status_code=422, content={"error": "IMAGE_UNREADABLE"})
-    return ScheduleRes(shiftTypes=data["shiftTypes"], shifts=shifts)
+    return ScheduleRes(shiftTypes=fill_default_times(data["shiftTypes"]), shifts=shifts)
 
 
 def _infer_year(month: int, today: date) -> int:
@@ -63,3 +80,23 @@ def _infer_year(month: int, today: date) -> int:
     if diff < -6:
         return today.year + 1
     return today.year
+
+
+if __name__ == "__main__":
+    # ponytail 자체점검: 프리셋 채우기 (API 호출 없음 = 요금 없음)
+    two = fill_default_times([{"shiftType": "주", "mapped": "DAY"}, {"shiftType": "야", "mapped": "NIGHT"},
+                              {"shiftType": "휴", "mapped": "OFF"}])
+    assert (two[0]["startTime"], two[0]["endTime"]) == ("08:00", "20:00"), two[0]
+    assert (two[1]["startTime"], two[1]["endTime"]) == ("20:00", "08:00"), two[1]
+    assert two[2].get("startTime") is None                      # 휴무는 시각 없음
+
+    three = fill_default_times([{"shiftType": "D", "mapped": "DAY"}, {"shiftType": "E", "mapped": "EVENING"},
+                                {"shiftType": "N", "mapped": "NIGHT"}, {"shiftType": "?", "mapped": "UNKNOWN"}])
+    assert [t.get("startTime") for t in three] == ["06:00", "14:00", "22:00", None], three
+
+    read = fill_default_times([{"shiftType": "D", "mapped": "DAY", "startTime": "07:00", "endTime": "15:00"}])
+    assert (read[0]["startTime"], read[0]["endTime"]) == ("07:00", "15:00")   # 읽어온 값은 그대로
+
+    half = fill_default_times([{"shiftType": "D", "mapped": "DAY", "startTime": "07:00"}])
+    assert (half[0]["startTime"], half[0]["endTime"]) == ("08:00", "20:00")   # 반쪽이면 프리셋으로
+    print("ok")

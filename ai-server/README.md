@@ -35,7 +35,10 @@ uvicorn app.main:app --port 8000 --reload
 - `year`/`month` — 선택. AI가 사진에서 직접 읽고(두 달치 표면 칸마다 다른 달로), 표에 안 적혀
   있을 때만 이 값 → 오늘 순으로 채운다. 날짜 조립(YYYY-MM-DD)은 라우터가 한다.
 - `shiftType`은 표에 적힌 **코드 그대로**(D/N/주간/1조...), 쉬는 날만 `OFF`.
-  표에 시간표가 없으면 `startTime`/`endTime`은 `null`(추측 안 함).
+- 표에 범례가 없어 시각을 못 읽으면 **교대 프리셋 기본값**을 채워 보낸다(AI 추측이 아니라 코드가
+  결정론적으로). EVENING 이 있으면 3교대(06-14/14-22/22-06), 없으면 2교대(08-20/20-08).
+  `OFF`/`UNKNOWN` 은 `null` 그대로. 백엔드 `shiftTypeDefaults` 는 시각이 필수라 null 이면
+  확정 단계에서 막히기 때문이다 — 사용자가 확인 화면에서 고치는 건 그대로.
 - 출력 상한은 `AI_MAX_TOKENS_VISION`(기본 8192)을 따로 쓴다. 하루당 한 칸씩 뱉으므로
   두 달치(61일)면 출력이 **약 2000토큰** — 공용 1024 상한에서는 잘려서 `shifts`가 통째로
   사라졌다(→ `IMAGE_UNREADABLE` → 백엔드 `PARSE_FAILED`). 잘린 응답은 절대 성공으로
@@ -47,7 +50,8 @@ uvicorn app.main:app --port 8000 --reload
 ## 자체 점검
 API 키 없이, 요금 없이 즉시 실행:
 ```bash
-python -m app.claude_client                # media-type 스니핑 + 작은 이미지 확대
+python -m app.claude_client                # media-type 스니핑 + 이미지 크기 맞추기
+python -m app.routers.parse_schedule       # 시각 못 읽었을 때 교대 프리셋 채우기
 python -m app.routers.suggest_adjustment   # 시각 가드 + AI 실패 시 초안 폴백
 ```
 
