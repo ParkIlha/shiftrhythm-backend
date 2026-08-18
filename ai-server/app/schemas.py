@@ -28,6 +28,10 @@ class ShiftDay(BaseModel):
 class ScheduleRes(BaseModel):
     shiftTypes: list[ShiftTypeDef]
     shifts: list[ShiftDay]
+    # 모든 shift의 월을 AI도 못 읽고 요청에도 없어서 오늘 날짜로 통째로 추측한 경우 true.
+    # 이땐 shifts[].date의 절대 연/월을 신뢰하지 말고, day 순서(상대 순번)만 신뢰해야 한다 —
+    # 앱이 시작일을 사용자에게 물어서 그 차이만큼 전체를 offset하는 방식으로 보정한다.
+    monthGuessed: bool = False
 
 
 # --- B-2 parse-disruption ---
