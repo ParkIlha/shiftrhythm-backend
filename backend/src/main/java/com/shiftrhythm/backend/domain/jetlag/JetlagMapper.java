@@ -15,21 +15,25 @@ import java.util.Map;
  *      = minutesBetween(기상시각, 16:00)  [07:00 + 9h = 16:00]
  * 이 값을 시간 단위로 반올림하고, 12시간을 넘으면 24를 빼서 -11~+12 범위(24개 존)로 맞춘다.
  *
- * 검증: 07:00 기상 → +9(Seoul, 기준점) / 15:00 기상 → +1(Paris) / 22:00 기상 → -6(Chicago)
+ * 검증: 07:00 기상 → +9(Korea, 기준점) / 15:00 기상 → +1(France) / 22:00 기상 → -6(Costa Rica)
  */
 public final class JetlagMapper {
 
     private static final LocalTime BASELINE_REFERENCE = LocalTime.of(16, 0); // 07:00(기상) + 9h(KST)
 
-    private static final Map<Integer, String> CITY_BY_OFFSET = Map.ofEntries(
-            Map.entry(-11, "Pago Pago"), Map.entry(-10, "Honolulu"), Map.entry(-9, "Anchorage"),
-            Map.entry(-8, "Los Angeles"), Map.entry(-7, "Denver"), Map.entry(-6, "Chicago"),
-            Map.entry(-5, "New York"), Map.entry(-4, "Halifax"), Map.entry(-3, "Buenos Aires"),
-            Map.entry(-2, "Vila dos Remédios"), Map.entry(-1, "Praia"), Map.entry(0, "London"),
-            Map.entry(1, "Paris"), Map.entry(2, "Johannesburg"), Map.entry(3, "Riyadh"),
-            Map.entry(4, "Dubai"), Map.entry(5, "Karachi"), Map.entry(6, "Dhaka"),
-            Map.entry(7, "Bangkok"), Map.entry(8, "Singapore"), Map.entry(9, "Seoul"),
-            Map.entry(10, "Brisbane"), Map.entry(11, "Nouméa"), Map.entry(12, "Suva")
+    /**
+     * +9는 이 매핑의 기준점(baseline)이라 "Korea"로 고정한다
+     * (나머지는 기획에서 받은 나라 매핑을 그대로 따름).
+     */
+    private static final Map<Integer, String> COUNTRY_BY_OFFSET = Map.ofEntries(
+            Map.entry(-11, "Samoa"), Map.entry(-10, "USA"), Map.entry(-9, "USA"),
+            Map.entry(-8, "Canada"), Map.entry(-7, "Mexico"), Map.entry(-6, "Costa Rica"),
+            Map.entry(-5, "Brazil"), Map.entry(-4, "Chile"), Map.entry(-3, "Argentina"),
+            Map.entry(-2, "Brazil"), Map.entry(-1, "Portugal"), Map.entry(0, "UK"),
+            Map.entry(1, "France"), Map.entry(2, "Egypt"), Map.entry(3, "Russia"),
+            Map.entry(4, "United Arab Emirates"), Map.entry(5, "Pakistan"), Map.entry(6, "Bangladesh"),
+            Map.entry(7, "Thailand"), Map.entry(8, "China"), Map.entry(9, "Korea"),
+            Map.entry(10, "Australia"), Map.entry(11, "Solomon Islands"), Map.entry(12, "New Zealand")
     );
 
     private JetlagMapper() {
@@ -43,10 +47,10 @@ public final class JetlagMapper {
 
     public static JetlagZone zoneOf(LocalTime wakeTime) {
         int offset = offsetOf(wakeTime);
-        return new JetlagZone(offset, CITY_BY_OFFSET.get(offset));
+        return new JetlagZone(offset, COUNTRY_BY_OFFSET.get(offset));
     }
 
-    public static String cityOf(int utcOffset) {
-        return CITY_BY_OFFSET.get(utcOffset);
+    public static String countryOf(int utcOffset) {
+        return COUNTRY_BY_OFFSET.get(utcOffset);
     }
 }

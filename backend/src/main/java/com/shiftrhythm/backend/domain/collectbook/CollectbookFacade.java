@@ -64,7 +64,7 @@ public class CollectbookFacade {
         List<ZoneCard> zones = new ArrayList<>();
         for (int i = 0; i < aggregates.size(); i++) {
             ZoneAggregate a = aggregates.get(i);
-            zones.add(new ZoneCard(i + 1, a.offset(), JetlagMapper.cityOf(a.offset()), a.livedDays(),
+            zones.add(new ZoneCard(i + 1, a.offset(), JetlagMapper.countryOf(a.offset()), a.livedDays(),
                     a.representativeSleepStart(), a.representativeSleepEnd(), a.isNew()));
         }
 
@@ -106,7 +106,7 @@ public class CollectbookFacade {
         if (isCurrentMonth) {
             ZoneCard top = zones.get(0);
             return "%d월 현재 %d개의 시간대에서 살고 있어요. 가장 오래 머문 시간대는 %s Time · %d일이에요."
-                    .formatted(month.getMonthValue(), zones.size(), top.city(), top.livedDays());
+                    .formatted(month.getMonthValue(), zones.size(), top.country(), top.livedDays());
         }
         return "%d월에는 %d개의 시간대에서 살았어요.".formatted(month.getMonthValue(), zones.size());
     }

@@ -29,8 +29,8 @@ public class JetlagService {
 
         return new JetlagView(
                 todayZone.utcOffset(),
-                todayZone.city(),
-                "현재 %s님은 %s 시간대에 살고 있어요.".formatted(userName, todayZone.city()),
+                todayZone.country(),
+                "현재 %s님은 %s 시간대에 살고 있어요.".formatted(userName, todayZone.country()),
                 dailyTravelHours,
                 "오늘은 %d시간을 건너요.".formatted(dailyTravelHours)
         );

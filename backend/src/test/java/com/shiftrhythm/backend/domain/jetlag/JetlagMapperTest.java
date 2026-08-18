@@ -9,40 +9,40 @@ import static org.assertj.core.api.Assertions.assertThat;
 class JetlagMapperTest {
 
     @Test
-    void baselineWakeTime_mapsToSeoul() {
+    void baselineWakeTime_mapsToKorea() {
         JetlagZone zone = JetlagMapper.zoneOf(LocalTime.of(7, 0));
         assertThat(zone.utcOffset()).isEqualTo(9);
-        assertThat(zone.city()).isEqualTo("Seoul");
+        assertThat(zone.country()).isEqualTo("Korea");
     }
 
     @Test
-    void afternoonWake_mapsToParis() {
+    void afternoonWake_mapsToFrance() {
         JetlagZone zone = JetlagMapper.zoneOf(LocalTime.of(15, 0));
         assertThat(zone.utcOffset()).isEqualTo(1);
-        assertThat(zone.city()).isEqualTo("Paris");
+        assertThat(zone.country()).isEqualTo("France");
     }
 
     @Test
-    void nightShiftWake_mapsToChicago() {
+    void nightShiftWake_mapsToCostaRica() {
         JetlagZone zone = JetlagMapper.zoneOf(LocalTime.of(22, 0));
         assertThat(zone.utcOffset()).isEqualTo(-6);
-        assertThat(zone.city()).isEqualTo("Chicago");
+        assertThat(zone.country()).isEqualTo("Costa Rica");
     }
 
     @Test
-    void noonWake_mapsToDubai() {
+    void noonWake_mapsToUnitedArabEmirates() {
         // minutesBetween(12:00,16:00)=4h -> offset 4
         JetlagZone zone = JetlagMapper.zoneOf(LocalTime.of(12, 0));
         assertThat(zone.utcOffset()).isEqualTo(4);
-        assertThat(zone.city()).isEqualTo("Dubai");
+        assertThat(zone.country()).isEqualTo("United Arab Emirates");
     }
 
     @Test
     void exactlyOppositeWake_mapsToBoundaryOffset() {
-        // 16:00 기상 -> minutesBetween(16:00,16:00)=0 -> offset 0 (London)
+        // 16:00 기상 -> minutesBetween(16:00,16:00)=0 -> offset 0 (UK)
         JetlagZone zone = JetlagMapper.zoneOf(LocalTime.of(16, 0));
         assertThat(zone.utcOffset()).isZero();
-        assertThat(zone.city()).isEqualTo("London");
+        assertThat(zone.country()).isEqualTo("UK");
     }
 
     @Test

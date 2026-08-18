@@ -40,18 +40,18 @@ class CollectbookFacadeTest {
         YearMonth month = YearMonth.of(2020, 3); // 과거 월 고정(YearMonth.now()와 절대 안 겹침)
         LocalDate d1 = month.atDay(1);
 
-        save(d1, LocalTime.of(7, 0));                // Seoul(+9) 1일
-        save(d1.plusDays(1), LocalTime.of(22, 0));    // Chicago(-6) 1일차
-        save(d1.plusDays(2), LocalTime.of(22, 0));    // Chicago(-6) 2일차
-        save(d1.plusDays(3), LocalTime.of(22, 0));    // Chicago(-6) 3일차
+        save(d1, LocalTime.of(7, 0));                // Korea(+9) 1일
+        save(d1.plusDays(1), LocalTime.of(22, 0));    // Costa Rica(-6) 1일차
+        save(d1.plusDays(2), LocalTime.of(22, 0));    // Costa Rica(-6) 2일차
+        save(d1.plusDays(3), LocalTime.of(22, 0));    // Costa Rica(-6) 3일차
 
         CollectbookView view = collectbookFacade.get(month);
 
         assertThat(view.zones()).hasSize(2);
-        assertThat(view.zones().get(0).city()).isEqualTo("Chicago");
+        assertThat(view.zones().get(0).country()).isEqualTo("Costa Rica");
         assertThat(view.zones().get(0).livedDays()).isEqualTo(3);
         assertThat(view.zones().get(0).rank()).isEqualTo(1);
-        assertThat(view.zones().get(1).city()).isEqualTo("Seoul");
+        assertThat(view.zones().get(1).country()).isEqualTo("Korea");
         assertThat(view.zones().get(1).rank()).isEqualTo(2);
     }
 
@@ -60,19 +60,19 @@ class CollectbookFacadeTest {
         YearMonth month = YearMonth.of(2020, 4);
         LocalDate d1 = month.atDay(1);
 
-        save(d1, LocalTime.of(7, 0));               // Seoul, 오래된 날
-        save(d1.plusDays(5), LocalTime.of(22, 0));   // Chicago, 더 최근
+        save(d1, LocalTime.of(7, 0));               // Korea, 오래된 날
+        save(d1.plusDays(5), LocalTime.of(22, 0));   // Costa Rica, 더 최근
 
         CollectbookView view = collectbookFacade.get(month);
 
         assertThat(view.zones()).hasSize(2);
-        // 둘 다 1일씩 -> 더 최근에 산(Chicago) 쪽이 1등
-        assertThat(view.zones().get(0).city()).isEqualTo("Chicago");
+        // 둘 다 1일씩 -> 더 최근에 산(Costa Rica) 쪽이 1등
+        assertThat(view.zones().get(0).country()).isEqualTo("Costa Rica");
     }
 
     @Test
     void representativeSleepIsModeAfterRoundingTo15Minutes() {
-        // 세 기상시각 모두 같은 zone(offset -6, Chicago) 안에 들어오도록 21:30~22:30 범위에서 고른다.
+        // 세 기상시각 모두 같은 zone(offset -6, Costa Rica) 안에 들어오도록 21:30~22:30 범위에서 고른다.
         YearMonth month = YearMonth.of(2020, 5);
         LocalDate d1 = month.atDay(1);
 
@@ -83,7 +83,7 @@ class CollectbookFacadeTest {
         CollectbookView view = collectbookFacade.get(month);
 
         assertThat(view.zones()).hasSize(1);
-        assertThat(view.zones().get(0).city()).isEqualTo("Chicago");
+        assertThat(view.zones().get(0).country()).isEqualTo("Costa Rica");
         assertThat(view.zones().get(0).representativeSleepEnd()).isEqualTo(LocalTime.of(22, 0));
     }
 
@@ -92,16 +92,16 @@ class CollectbookFacadeTest {
         YearMonth prevMonth = YearMonth.of(2020, 5);
         YearMonth thisMonth = YearMonth.of(2020, 6);
 
-        save(prevMonth.atDay(1), LocalTime.of(7, 0)); // Seoul, 지난달에 이미 경험
-        save(thisMonth.atDay(1), LocalTime.of(7, 0)); // Seoul, 이번달도 -> NEW 아님
-        save(thisMonth.atDay(2), LocalTime.of(22, 0)); // Chicago, 처음 등장 -> NEW
+        save(prevMonth.atDay(1), LocalTime.of(7, 0)); // Korea, 지난달에 이미 경험
+        save(thisMonth.atDay(1), LocalTime.of(7, 0)); // Korea, 이번달도 -> NEW 아님
+        save(thisMonth.atDay(2), LocalTime.of(22, 0)); // Costa Rica, 처음 등장 -> NEW
 
         CollectbookView view = collectbookFacade.get(thisMonth);
 
-        ZoneCard seoul = view.zones().stream().filter(z -> z.city().equals("Seoul")).findFirst().orElseThrow();
-        ZoneCard chicago = view.zones().stream().filter(z -> z.city().equals("Chicago")).findFirst().orElseThrow();
-        assertThat(seoul.isNew()).isFalse();
-        assertThat(chicago.isNew()).isTrue();
+        ZoneCard korea = view.zones().stream().filter(z -> z.country().equals("Korea")).findFirst().orElseThrow();
+        ZoneCard costaRica = view.zones().stream().filter(z -> z.country().equals("Costa Rica")).findFirst().orElseThrow();
+        assertThat(korea.isNew()).isFalse();
+        assertThat(costaRica.isNew()).isTrue();
     }
 
     @Test
@@ -124,7 +124,7 @@ class CollectbookFacadeTest {
 
         CollectbookView view = collectbookFacade.get(month);
 
-        assertThat(view.summary()).contains("현재").contains("Seoul").contains("2일");
+        assertThat(view.summary()).contains("현재").contains("Korea").contains("2일");
     }
 
     @Test
