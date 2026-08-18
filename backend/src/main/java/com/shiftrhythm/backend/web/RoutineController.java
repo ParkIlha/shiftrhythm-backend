@@ -3,6 +3,7 @@ package com.shiftrhythm.backend.web;
 import com.shiftrhythm.backend.domain.routine.ReplanFacade;
 import com.shiftrhythm.backend.domain.routine.RoutineFacade;
 import com.shiftrhythm.backend.domain.routine.TodayRoutineView;
+import com.shiftrhythm.backend.domain.schedule.AppClock;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @RestController
@@ -54,7 +54,7 @@ public class RoutineController {
     )
     @GetMapping("/api/routines/today")
     public TodayRoutineView today() {
-        var date = routineFacade.resolveCurrentCycleDate(LocalDateTime.now());
+        var date = routineFacade.resolveCurrentCycleDate(AppClock.now());
         return routineFacade.getToday(date);
     }
 
