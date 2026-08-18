@@ -209,6 +209,17 @@ Spring이 계산한 수면 초안과 제약 조건을 바탕으로 AI가 수면�
 
 ## 배포
 
-EC2 배포는 API 엔드포인트 구현 이후 진행 예정이다.
+EC2에 수동 배포 중이다. 레포에 별도의 프로덕션 전용 설정(예: `docker-compose.prod.yml`, nginx, ECR)은 없고,
+로컬 개발과 동일한 `docker-compose.yml`을 EC2 위에서 그대로 띄운다.
 
-현재는 로컬 `docker compose` 환경까지 검증 완료.
+- **인프라**: EC2 인스턴스 하나에 `docker compose`로 `backend`/`ai-server`/`db`(MySQL) 컨테이너 3개를 띄운다.
+  RDS 등 외부 관리형 DB는 쓰지 않는다.
+- **배포 절차(수동)**: EC2에 SSH 접속 → 레포 디렉터리에서 `git pull` → `sudo docker compose up -d --build`.
+  GitHub Actions에는 아직 CD가 없다(테스트만 돈다) — 즉 push/merge해도 자동 반영되지 않고, 위 절차를 직접 실행해야 한다.
+- **포트/노출**: `backend`만 컨테이너 `0.0.0.0:8080`으로 호스트에 노출한다. `ai-server`는 포트 매핑이 없어
+  같은 docker 네트워크 안에서 `backend`가 `http://ai-server:8000`으로만 접근할 수 있다(외부 직접 접근 불가).
+- **외부 공개**: nginx 리버스 프록시는 없다. EC2 위에서 `cloudflared tunnel --url http://localhost:8080`를
+  docker compose와 별개의 백그라운드 프로세스로 실행해, 요청 시 발급되는 `*.trycloudflare.com` 주소로
+  8080을 외부에 공개한다. 이 프로세스가 재시작되면 URL이 바뀐다.
+
+향후 CI에 CD 단계를 붙이거나(예: SSH 배포 액션, ECR+ECS 전환) nginx/도메인을 붙이는 건 아직 미정.
