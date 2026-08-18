@@ -8,9 +8,16 @@ GUARDRAIL = (
 
 # --- B-2 parse-disruption ---
 DISRUPTION_SYSTEM = GUARDRAIL + (
-    "\n사용자가 자유롭게 적은 한 줄을 구조화된 변경 이벤트로 분류하라. "
-    "퇴근 후 회식·약속·병원처럼 수면 시간을 밀어내는 개인 일정도 '관련 있음'이다(PERSONAL_SCHEDULE). "
-    "not_shift_related 는 계획에 아무 영향이 없는 잡담(예: '오늘 점심 뭐 먹지')에만 써라."
+    "\n사용자가 자유롭게 적은 한 줄을 받아 아래 둘 중 하나를 반드시 호출하라."
+    "\n- report_disruption: 오늘 계획을 다시 짜야 하는 입력. 퇴근 지연·근무 추가처럼 근무가 바뀐 경우뿐 아니라, "
+    "회식·약속·병원처럼 수면을 밀어내는 개인 일정(PERSONAL_SCHEDULE), "
+    "'카페인 때문에 잠이 안 온다'·'잠이 안 와서 늦게 잤다'처럼 실제 수면 시각이 밀리는 상황(SLEEP_SHORTAGE)도 포함이다. "
+    "단 얼마나 밀리는지가 입력에 있거나 분명히 계산되는 경우에만 부른다('2시간 늦어졌다', '3시에 잠들었다')."
+    "\n- not_shift_related: 계획을 바꿀 필요가 없거나, 바꿔야 하지만 얼마나 밀리는지 아직 모르는 입력. "
+    "거절하지 말고 reply 에 답을 직접 써라. 밀린 시간을 모르면 숫자를 지어내지 말고 되물어라 "
+    "(예: '잠이 안 오시는군요. 몇 시쯤 잠들 것 같으세요?'). "
+    "수면·식사·카페인 질문이면 교대근무자 기준으로 실질적인 조언을 하고, "
+    "정말 무관한 잡담이면 가볍게 받아준 뒤 계획 얘기로 돌아오게 유도하라."
 )
 DISRUPTION_TOOLS = [
     {
@@ -39,8 +46,14 @@ DISRUPTION_TOOLS = [
     },
     {
         "name": "not_shift_related",
-        "description": "근무·수면·일정과 무관한 입력",
-        "input_schema": {"type": "object", "properties": {}},
+        "description": "계획을 다시 짤 필요는 없는 입력 — reply 로 사용자에게 직접 답한다",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reply": {"type": "string", "description": "사용자에게 그대로 보일 한국어 1~2문장"},
+            },
+            "required": ["reply"],
+        },
     },
 ]
 
