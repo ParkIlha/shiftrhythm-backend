@@ -209,11 +209,6 @@ Spring이 계산한 수면 초안과 제약 조건을 바탕으로 AI가 수면�
 
 ## 배포
 
-<<<<<<< Updated upstream
-EC2 배포는 API 엔드포인트 구현 이후 진행 예정이다.
-
-현재는 로컬 `docker compose` 환경까지 검증 완료.
-=======
 EC2에 배포한다. 레포에 별도의 프로덕션 전용 설정(예: `docker-compose.prod.yml`, nginx, ECR)은 없고,
 로컬 개발과 동일한 `docker-compose.yml`을 EC2 위에서 그대로 띄운다.
 
@@ -231,4 +226,3 @@ EC2에 배포한다. 레포에 별도의 프로덕션 전용 설정(예: `docker
   CD가 자동으로 돌리지 않는다. 시연 전엔 EC2에서 직접
   `docker compose exec -T db mysql -u root -proot shiftrhythm < backend/src/main/resources/db/seed_demo.sql`로
   다시 넣어줘야 한다(날짜가 `CURDATE()` 기준 상대값이라 실행 시점 기준 "오늘"로 리셋된다).
->>>>>>> Stashed changes
