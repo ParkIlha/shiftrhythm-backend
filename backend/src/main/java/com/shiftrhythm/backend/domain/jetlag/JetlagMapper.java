@@ -15,25 +15,25 @@ import java.util.Map;
  *      = minutesBetween(기상시각, 16:00)  [07:00 + 9h = 16:00]
  * 이 값을 시간 단위로 반올림하고, 12시간을 넘으면 24를 빼서 -11~+12 범위(24개 존)로 맞춘다.
  *
- * 검증: 07:00 기상 → +9(Korea, 기준점) / 15:00 기상 → +1(France) / 22:00 기상 → -6(Costa Rica)
+ * 검증: 07:00 기상 → +9(한국, 기준점) / 15:00 기상 → +1(프랑스) / 22:00 기상 → -6(코스타리카)
  */
 public final class JetlagMapper {
 
     private static final LocalTime BASELINE_REFERENCE = LocalTime.of(16, 0); // 07:00(기상) + 9h(KST)
 
     /**
-     * +9는 이 매핑의 기준점(baseline)이라 "Korea"로 고정한다
+     * +9는 이 매핑의 기준점(baseline)이라 "한국"으로 고정한다
      * (나머지는 기획에서 받은 나라 매핑을 그대로 따름).
      */
     private static final Map<Integer, String> COUNTRY_BY_OFFSET = Map.ofEntries(
-            Map.entry(-11, "Samoa"), Map.entry(-10, "USA"), Map.entry(-9, "USA"),
-            Map.entry(-8, "Canada"), Map.entry(-7, "Mexico"), Map.entry(-6, "Costa Rica"),
-            Map.entry(-5, "Brazil"), Map.entry(-4, "Chile"), Map.entry(-3, "Argentina"),
-            Map.entry(-2, "Brazil"), Map.entry(-1, "Portugal"), Map.entry(0, "UK"),
-            Map.entry(1, "France"), Map.entry(2, "Egypt"), Map.entry(3, "Russia"),
-            Map.entry(4, "United Arab Emirates"), Map.entry(5, "Pakistan"), Map.entry(6, "Bangladesh"),
-            Map.entry(7, "Thailand"), Map.entry(8, "China"), Map.entry(9, "Korea"),
-            Map.entry(10, "Australia"), Map.entry(11, "Solomon Islands"), Map.entry(12, "New Zealand")
+            Map.entry(-11, "사모아"), Map.entry(-10, "미국"), Map.entry(-9, "미국"),
+            Map.entry(-8, "캐나다"), Map.entry(-7, "멕시코"), Map.entry(-6, "코스타리카"),
+            Map.entry(-5, "브라질"), Map.entry(-4, "칠레"), Map.entry(-3, "아르헨티나"),
+            Map.entry(-2, "브라질"), Map.entry(-1, "포르투갈"), Map.entry(0, "영국"),
+            Map.entry(1, "프랑스"), Map.entry(2, "이집트"), Map.entry(3, "러시아"),
+            Map.entry(4, "아랍에미리트"), Map.entry(5, "파키스탄"), Map.entry(6, "방글라데시"),
+            Map.entry(7, "태국"), Map.entry(8, "중국"), Map.entry(9, "한국"),
+            Map.entry(10, "호주"), Map.entry(11, "솔로몬 제도"), Map.entry(12, "뉴질랜드")
     );
 
     private JetlagMapper() {
