@@ -46,12 +46,19 @@ def parse_schedule(req: ScheduleReq):
     name, data = call_tool(MODEL_VISION, prompts.SCHEDULE_SYSTEM, content, prompts.SCHEDULE_TOOLS,
                            max_tokens=MAX_TOKENS_VISION)
     if name == "who_am_i":
-        return JSONResponse(status_code=422, content={
+        row_labels = data.get("rowLabels", [])
+        row_previews = data.get("rowPreviews", [])
+        body = {
             "error": "ROW_LABEL_REQUIRED",
             "message": "근무표에 여러 명이 있어요. 본인 행을 선택해주세요",
             # 백엔드 RowLabelRequiredBody 가 이 이름으로 읽는다. 바꾸면 행 목록이 null 이 된다.
-            "rowLabels": data.get("rowLabels", []),
-        })
+            "rowLabels": row_labels,
+        }
+        # 길이가 안 맞으면(모델이 몇 개 빼먹은 경우) 어느 라벨과 어느 미리보기가 짝인지 알 수
+        # 없으므로 통째로 뺀다 — 잘못 짝지어 보여주는 것보다 안 보여주는 게 안전하다.
+        if row_previews and len(row_previews) == len(row_labels):
+            body["rowPreviews"] = row_previews
+        return JSONResponse(status_code=422, content=body)
     if name != "extract_schedule" or not data.get("shifts"):
         return JSONResponse(status_code=422, content={"error": "IMAGE_UNREADABLE"})
     # AI가 칸마다 실제 월(과 있으면 연도)을 읽어오므로, 표가 두 달에 걸쳐 있어도(예: 8/28~9/3)
