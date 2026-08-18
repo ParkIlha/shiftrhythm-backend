@@ -9,7 +9,8 @@ GUARDRAIL = (
 # --- B-2 parse-disruption ---
 DISRUPTION_SYSTEM = GUARDRAIL + (
     "\n사용자가 자유롭게 적은 한 줄을 구조화된 변경 이벤트로 분류하라. "
-    "근무·수면·일정과 무관한 내용이면 not_shift_related 도구를 써라."
+    "퇴근 후 회식·약속·병원처럼 수면 시간을 밀어내는 개인 일정도 '관련 있음'이다(PERSONAL_SCHEDULE). "
+    "not_shift_related 는 계획에 아무 영향이 없는 잡담(예: '오늘 점심 뭐 먹지')에만 써라."
 )
 DISRUPTION_TOOLS = [
     {
@@ -29,7 +30,7 @@ DISRUPTION_TOOLS = [
                 "reasonCategory": {
                     "type": "string",
                     # 백엔드 ReplanReason enum과 반드시 일치해야 한다(다르면 confirm 단계에서 500).
-                    # 회식/모임처럼 근무 자체와 무관한 개인 일정은 PERSONAL_SCHEDULE로 분류.
+                    "description": "회식·모임·약속처럼 근무 자체와 무관한 개인 일정은 PERSONAL_SCHEDULE",
                     "enum": ["LATE_CLOCKOUT", "EARLY_CLOCKOUT", "SHIFT_CHANGE", "PERSONAL_SCHEDULE", "OTHER"],
                 },
             },
@@ -105,7 +106,10 @@ SCHEDULE_SYSTEM = GUARDRAIL + (
     "날짜는 표에 실제로 적힌 값을 그대로 읽어라 — 칸이 몇 번째 열인지가 아니라 '9/1', '9월 1일' 같은 "
     "표기 자체를 읽어서 월(month, 1~12)을 채워라. 표가 두 달에 걸쳐 있으면(예: 8/28~9/3) 칸마다 실제 "
     "해당 월을 정확히 구분해서 넣어라 — 표 앞부분이라고 다 같은 달이라 가정하지 마라. "
-    "연도가 표에 적혀 있으면(예: '2024년 9월', '2024/9/1') year를 채우고, 안 보이면 생략해라(코드가 추론한다). "
+    "월이 표에 아예 안 적혀 있으면 month를 생략해라 — 0이나 1 같은 값을 지어내지 마라(코드가 채운다). "
+    "특히 헤더가 '1 2 3 …' 처럼 며칠만 있거나 요일(월·화·수)만 있는 표가 흔하다. "
+    "요일의 '월'은 월요일이지 1월이 아니다. 이런 표는 month 없이 day만 채워라. "
+    "연도도 마찬가지로 표에 적혀 있을 때만 year를 채워라. "
     "요일 표기(예: '9/1(일)')가 있으면 참고해서 월 판단의 근거로 삼아도 좋다. "
     "내 행을 찾을 수 없거나 표를 신뢰성 있게 읽을 수 없으면 image_unreadable 도구를 써라(억지로 채우지 마라)."
 )
@@ -146,11 +150,11 @@ SCHEDULE_TOOLS = [
                         "type": "object",
                         "properties": {
                             "day": {"type": "integer", "description": "표에 적힌 며칠(1~31)"},
-                            "month": {"type": "integer", "description": "표에 적힌 실제 월(1~12). 열 순서가 아니라 표기 그대로"},
+                            "month": {"type": "integer", "description": "표에 적힌 실제 월(1~12). 열 순서가 아니라 표기 그대로. 표에 월이 안 적혀 있으면 생략"},
                             "year": {"type": "integer", "description": "표에 연도가 적혀 있으면 그 값(예: 2024). 안 보이면 생략"},
                             "shiftType": {"type": "string", "description": "그 날 코드 그대로. 쉬면 OFF"},
                         },
-                        "required": ["day", "month", "shiftType"],
+                        "required": ["day", "shiftType"],
                     },
                 },
             },

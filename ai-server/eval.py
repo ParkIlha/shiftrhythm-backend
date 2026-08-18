@@ -72,7 +72,8 @@ def eval_disruption():
     def case_dinner():
         r = disruption("퇴근하고 회식 가기로 했어", current="EVENING", nxt="EVENING", clock_out="23:00")
         assert not rejected(r), "근무 관련인데 거부됨"
-        assert r.reasonCategory == "DINNER_GATHERING", f"회식인데 {r.reasonCategory}"
+        # DINNER_GATHERING 은 과거 계약. 지금 백엔드 ReplanReason enum 에는 없다.
+        assert r.reasonCategory == "PERSONAL_SCHEDULE", f"회식인데 {r.reasonCategory}"
 
     def case_irrelevant():
         r = disruption("오늘 점심 뭐 먹지")

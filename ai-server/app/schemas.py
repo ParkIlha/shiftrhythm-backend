@@ -7,9 +7,10 @@ class ScheduleReq(BaseModel):
     imageBase64: str
     # myRowLabel 없음 → 표에 행이 하나뿐일 때만 정상(여러 명이면 422)
     myRowLabel: str | None = None
-    # 연도는 기본적으로 AI가 사진에서 직접 읽거나(안 보이면 오늘 기준으로 추론) 조립하므로 선택값이다.
-    # 프론트가 "이 사진은 몇 년도"라고 명시적으로 알고 있는 경우에만 덮어쓰기용으로 보내면 된다.
+    # 연/월은 기본적으로 AI가 사진에서 직접 읽으므로 선택값이다. 표에 "20xx년 _월"처럼 비어 있는
+    # 양식도 있어서, 그때 쓸 폴백으로 프론트가 알고 있으면 보내면 된다(없으면 오늘 기준).
     year: int | None = None
+    month: int | None = None
 
 class ShiftTypeDef(BaseModel):
     shiftType: str                # 표에 적힌 코드 그대로 (D, 주간, 1조 ...). shifts 와 잇는 키
