@@ -123,13 +123,13 @@ public class OnboardingService {
         }
         shiftTypeDefaultRepository.flush();
 
+        shiftRepository.deleteByUserProfileId(userId);
+        shiftRepository.flush();
+
         List<ShiftInput> sorted = shifts.stream().sorted(Comparator.comparing(ShiftInput::date)).toList();
 
         for (ShiftInput s : sorted) {
-            Shift entity = shiftRepository.findByUserProfileIdAndDate(userId, s.date())
-                    .orElseGet(() -> new Shift(userId, s.date(), s.shiftType(), null, null));
-            entity.setShiftType(s.shiftType());
-            shiftRepository.save(entity);
+            shiftRepository.save(new Shift(userId, s.date(), s.shiftType(), null, null));
         }
         shiftRepository.flush();
 

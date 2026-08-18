@@ -13,4 +13,6 @@ public interface ShiftRepository extends JpaRepository<Shift, Long> {
     List<Shift> findByUserProfileIdAndDateBetweenOrderByDateAsc(Long userProfileId, LocalDate from, LocalDate to);
 
     Optional<Shift> findByUserProfileIdAndDate(Long userProfileId, LocalDate date);
+
+    void deleteByUserProfileId(Long userProfileId);
 }
