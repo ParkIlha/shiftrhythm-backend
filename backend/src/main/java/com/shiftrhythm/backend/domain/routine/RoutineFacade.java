@@ -112,7 +112,7 @@ public class RoutineFacade {
             }
         }
 
-        List<TimelineSegment> timeline = buildTimeline(current, computation.today());
+        List<TimelineSegment> timeline = buildTimeline(userId, date, current, computation.today());
         MealTimes mt = current.getMealTimes();
         var mealConstraints = new TodayRoutineView.MealConstraintsView(
                 mt.bigMealCutoff(), mt.nightRestrictionStart(), mt.nightRestrictionEnd(), mt.caffeineCutoff());
@@ -137,27 +137,46 @@ public class RoutineFacade {
         return "최근 3일간 목표보다 %s 부족하게 잤어요.".formatted(amount);
     }
 
-    private List<TimelineSegment> buildTimeline(RoutineResult r, ShiftWindow todayShift) {
+    /**
+     * targetDate 하루(00:00~24:00)의 타임라인. 자정을 넘나드는 세그먼트(예: 어제 밤 수면이 오늘
+     * 새벽까지 이어짐)를 놓치지 않기 위해, 어제 것까지 후보로 모아서 넘긴다 — 내일 것까지 볼 필요는
+     * 없다(TimelineSegment.date는 항상 시작일이라, 내일 날짜로 시작하는 세그먼트는 정의상 오늘 00:00
+     * 이전으로 넘어올 수 없다).
+     */
+    private List<TimelineSegment> buildTimeline(Long userId, LocalDate date, RoutineResult current, ShiftWindow todayShift) {
+        List<TimelineSegment> candidates = new ArrayList<>(daySegments(current, todayShift, date));
+
+        LocalDate yesterday = date.minusDays(1);
+        routineResultRepository.findByUserProfileIdAndDateAndIsCurrentTrue(userId, yesterday)
+                .ifPresent(prev -> {
+                    ShiftWindow prevShift = computationService.compute(yesterday).today();
+                    candidates.addAll(daySegments(prev, prevShift, yesterday));
+                });
+
+        return TimelineBuilder.buildForDay(candidates, date);
+    }
+
+    private List<TimelineSegment> daySegments(RoutineResult r, ShiftWindow shift, LocalDate date) {
         List<TimelineSegment> segments = new ArrayList<>();
-        if (todayShift.type() != ShiftType.OFF && todayShift.startTime() != null) {
-            LocalTime shiftEnd = r.getAdjustedShiftEndTime() != null ? r.getAdjustedShiftEndTime() : todayShift.endTime();
-            segments.add(new TimelineSegment("근무", todayShift.startTime(), shiftEnd));
+        if (shift.type() != ShiftType.OFF && shift.startTime() != null) {
+            LocalTime shiftEnd = r.getAdjustedShiftEndTime() != null ? r.getAdjustedShiftEndTime() : shift.endTime();
+            segments.add(new TimelineSegment("근무", date, shift.startTime(), shiftEnd));
         }
-        segments.add(new TimelineSegment("주수면", r.getSleepStart(), r.getSleepEnd()));
+        segments.add(new TimelineSegment("주수면", date, r.getSleepStart(), r.getSleepEnd()));
         if (r.getSupplementarySleepStart() != null) {
-            segments.add(new TimelineSegment("보조수면", r.getSupplementarySleepStart(), r.getSupplementarySleepEnd()));
+            segments.add(new TimelineSegment("보조수면", date, r.getSupplementarySleepStart(), r.getSupplementarySleepEnd()));
         }
         MealTimes mt = r.getMealTimes();
         if (mt.mainMeal() != null) {
-            segments.add(new TimelineSegment("주요식사", mt.mainMeal(), mt.mainMeal().plusMinutes(30)));
+            segments.add(new TimelineSegment("주요식사", date, mt.mainMeal(), mt.mainMeal().plusMinutes(30)));
         }
         if (mt.subMeal() != null) {
-            segments.add(new TimelineSegment("서브식사", mt.subMeal(), mt.subMeal().plusMinutes(20)));
+            segments.add(new TimelineSegment("서브식사", date, mt.subMeal(), mt.subMeal().plusMinutes(20)));
         }
         if (mt.snackTime() != null) {
-            segments.add(new TimelineSegment("간식", mt.snackTime(), mt.snackTime().plusMinutes(10)));
+            segments.add(new TimelineSegment("간식", date, mt.snackTime(), mt.snackTime().plusMinutes(10)));
         }
-        return TimelineBuilder.build(segments);
+        return segments;
     }
 
     private SuggestAdjustmentRequest buildRequest(UserProfile profile, RoutineComputation computation,
