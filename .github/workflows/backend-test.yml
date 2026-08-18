@@ -1,4 +1,4 @@
-name: Backend Test
+name: Backend CI/CD
 
 on:
   push:
@@ -33,3 +33,19 @@ jobs:
         with:
           name: test-results
           path: backend/build/reports/tests/test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into EC2 and redeploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/shiftrhythm-backend
+            git pull
+            docker compose up -d --build
