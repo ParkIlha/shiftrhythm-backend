@@ -51,6 +51,9 @@ public class RoutineResult {
     private LocalTime supplementarySleepEnd;
     private Integer napMinutes;
 
+    /** 재설계로 실제 근무 종료시각이 바뀐 경우에만 채워진다(SHIFT_END_DELAY/SHIFT_ADDED). 그 외엔 null — 원본 근무표 시각을 그대로 쓴다. */
+    private LocalTime adjustedShiftEndTime;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
     private MealTimes mealTimes;

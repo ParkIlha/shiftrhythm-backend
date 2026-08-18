@@ -63,7 +63,10 @@ public class ReplanFacade {
         this.routineFacade = routineFacade;
     }
 
+    private static final java.util.Set<String> SHIFT_BLOCK_CHANGING_EVENT_TYPES = java.util.Set.of("SHIFT_END_DELAY", "SHIFT_ADDED");
+
     private record CachedPreview(LocalDate date, RoutineMode mode, SleepBlock finalSleep, MealTimes finalMeal,
+                                  LocalTime adjustedShiftEndTime,
                                   ParseDisruptionResponse disruption, SuggestAdjustmentResponse suggestion,
                                   Instant expiresAt) {
     }
@@ -103,9 +106,13 @@ public class ReplanFacade {
         SleepBlock finalSleep = resolveFinalSleep(recomputed, suggestion);
         MealTimes finalMeal = resolveFinalMeal(recomputed.mealBlock(), suggestion, finalSleep);
 
+        LocalTime adjustedShiftEndTime = SHIFT_BLOCK_CHANGING_EVENT_TYPES.contains(disruption.eventType())
+                ? recomputed.today().endTime()
+                : null;
+
         UUID previewId = UUID.randomUUID();
-        previews.put(previewId, new CachedPreview(date, recomputed.mode(), finalSleep, finalMeal, disruption, suggestion,
-                Instant.now().plus(TTL_MINUTES, ChronoUnit.MINUTES)));
+        previews.put(previewId, new CachedPreview(date, recomputed.mode(), finalSleep, finalMeal, adjustedShiftEndTime,
+                disruption, suggestion, Instant.now().plus(TTL_MINUTES, ChronoUnit.MINUTES)));
 
         RoutineSnapshot before = snapshotOf(current.getMode().name(), current.getSleepStart(), current.getSleepEnd(), current.getMealTimes());
         RoutineSnapshot after = snapshotOf(recomputed.mode().name(), finalSleep.mainSleepStart(), finalSleep.mainSleepEnd(), finalMeal);
@@ -137,6 +144,7 @@ public class ReplanFacade {
                 parseReplanReason(cached.disruption().reasonCategory()), cached.mode(),
                 sb.mainSleepStart(), sb.mainSleepEnd(), sb.supplementarySleepStart(), sb.supplementarySleepEnd(),
                 sb.napMinutes(), cached.finalMeal());
+        next.setAdjustedShiftEndTime(cached.adjustedShiftEndTime());
         next.setAiReason(cached.suggestion() == null ? null
                 : cached.suggestion().sleep().reason() + " / " + cached.suggestion().meal().reason());
         next.setAiUpdatedAt(LocalDateTime.now());
