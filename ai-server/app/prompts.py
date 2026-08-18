@@ -9,7 +9,8 @@ GUARDRAIL = (
 # --- B-2 parse-disruption ---
 DISRUPTION_SYSTEM = GUARDRAIL + (
     "\n사용자가 자유롭게 적은 한 줄을 구조화된 변경 이벤트로 분류하라. "
-    "근무·수면·일정과 무관한 내용이면 not_shift_related 도구를 써라."
+    "퇴근 후 회식·약속·병원처럼 수면 시간을 밀어내는 개인 일정도 '관련 있음'이다(PERSONAL_SCHEDULE). "
+    "not_shift_related 는 계획에 아무 영향이 없는 잡담(예: '오늘 점심 뭐 먹지')에만 써라."
 )
 DISRUPTION_TOOLS = [
     {
@@ -29,7 +30,7 @@ DISRUPTION_TOOLS = [
                 "reasonCategory": {
                     "type": "string",
                     # 백엔드 ReplanReason enum과 반드시 일치해야 한다(다르면 confirm 단계에서 500).
-                    # 회식/모임처럼 근무 자체와 무관한 개인 일정은 PERSONAL_SCHEDULE로 분류.
+                    "description": "회식·모임·약속처럼 근무 자체와 무관한 개인 일정은 PERSONAL_SCHEDULE",
                     "enum": ["LATE_CLOCKOUT", "EARLY_CLOCKOUT", "SHIFT_CHANGE", "PERSONAL_SCHEDULE", "OTHER"],
                 },
             },
