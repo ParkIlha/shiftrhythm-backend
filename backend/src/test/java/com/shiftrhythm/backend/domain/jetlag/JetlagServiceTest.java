@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -37,10 +36,10 @@ class JetlagServiceTest {
 
     @Test
     void todayView_reflectsTodaysZone() {
-        LocalDate monday = LocalDate.of(2026, 8, 3);
-        save(monday, LocalTime.of(7, 0)); // offset 9 (Seoul)
+        LocalDate today = LocalDate.of(2026, 8, 3);
+        save(today, LocalTime.of(7, 0)); // offset 9 (Seoul)
 
-        JetlagView view = jetlagService.todayView(monday, LocalTime.of(7, 0), "테스터");
+        JetlagView view = jetlagService.todayView(today, LocalTime.of(7, 0), "테스터");
 
         assertThat(view.utcOffset()).isEqualTo(9);
         assertThat(view.city()).isEqualTo("Seoul");
@@ -48,43 +47,40 @@ class JetlagServiceTest {
     }
 
     @Test
-    void weeklyTravelHours_sumsDailyOffsetDeltasWithinWeek() {
-        LocalDate monday = LocalDate.of(2026, 8, 3);
-        assertThat(monday.getDayOfWeek()).isEqualTo(DayOfWeek.MONDAY);
+    void dailyTravelHours_isDeltaFromYesterday() {
+        LocalDate yesterday = LocalDate.of(2026, 8, 3);
+        LocalDate today = yesterday.plusDays(1);
 
-        save(monday, LocalTime.of(7, 0));               // offset 9
-        save(monday.plusDays(1), LocalTime.of(15, 0));   // offset 1 -> |1-9|=8
-        save(monday.plusDays(2), LocalTime.of(22, 0));   // offset -6 -> |-6-1|=7
+        save(yesterday, LocalTime.of(7, 0));  // offset 9
+        save(today, LocalTime.of(15, 0));     // offset 1 -> |1-9|=8
 
-        JetlagView view = jetlagService.todayView(monday.plusDays(2), LocalTime.of(22, 0), "테스터");
+        JetlagView view = jetlagService.todayView(today, LocalTime.of(15, 0), "테스터");
 
-        assertThat(view.weeklyTravelHours()).isEqualTo(15); // 8 + 7
-        assertThat(view.weeklyMessage()).contains("15");
+        assertThat(view.dailyTravelHours()).isEqualTo(8);
+        assertThat(view.dailyMessage()).contains("8");
+        assertThat(view.dailyMessage()).contains("오늘은");
     }
 
     @Test
-    void weeklyTravelHours_mondayCountsDeltaFromPreviousSunday() {
-        LocalDate sunday = LocalDate.of(2026, 8, 2);
-        LocalDate monday = sunday.plusDays(1);
-        assertThat(sunday.getDayOfWeek()).isEqualTo(DayOfWeek.SUNDAY);
+    void dailyTravelHours_usesCircularDistance() {
+        LocalDate yesterday = LocalDate.of(2026, 8, 3);
+        LocalDate today = yesterday.plusDays(1);
 
-        save(sunday, LocalTime.of(7, 0));   // offset 9 (지난주)
-        save(monday, LocalTime.of(22, 0));  // offset -6 -> 원형 거리 min(15, 9) = 9
+        save(yesterday, LocalTime.of(7, 0));   // offset 9 (Seoul)
+        save(today, LocalTime.of(22, 0));      // offset -6 (Chicago) -> 원형 거리 min(15, 9) = 9
 
-        JetlagView view = jetlagService.todayView(monday, LocalTime.of(22, 0), "테스터");
+        JetlagView view = jetlagService.todayView(today, LocalTime.of(22, 0), "테스터");
 
-        assertThat(view.weeklyTravelHours()).isEqualTo(9);
+        assertThat(view.dailyTravelHours()).isEqualTo(9);
     }
 
     @Test
-    void weeklyTravelHours_missingDayBreaksTheChain() {
-        LocalDate monday = LocalDate.of(2026, 8, 3);
-        save(monday, LocalTime.of(7, 0));                // offset 9
-        // 화요일(월+1) 데이터 없음 -> 수요일과의 델타는 계산 안 됨
-        save(monday.plusDays(2), LocalTime.of(22, 0));   // offset -6, but 전날(화) 데이터 없어 델타 미포함
+    void dailyTravelHours_noYesterdayRecord_isZero() {
+        LocalDate today = LocalDate.of(2026, 8, 3);
+        save(today, LocalTime.of(22, 0));
 
-        JetlagView view = jetlagService.todayView(monday.plusDays(2), LocalTime.of(22, 0), "테스터");
+        JetlagView view = jetlagService.todayView(today, LocalTime.of(22, 0), "테스터");
 
-        assertThat(view.weeklyTravelHours()).isZero();
+        assertThat(view.dailyTravelHours()).isZero();
     }
 }
