@@ -140,7 +140,8 @@ public class RoutineFacade {
     private List<TimelineSegment> buildTimeline(RoutineResult r, ShiftWindow todayShift) {
         List<TimelineSegment> segments = new ArrayList<>();
         if (todayShift.type() != ShiftType.OFF && todayShift.startTime() != null) {
-            segments.add(new TimelineSegment("근무", todayShift.startTime(), todayShift.endTime()));
+            LocalTime shiftEnd = r.getAdjustedShiftEndTime() != null ? r.getAdjustedShiftEndTime() : todayShift.endTime();
+            segments.add(new TimelineSegment("근무", todayShift.startTime(), shiftEnd));
         }
         segments.add(new TimelineSegment("주수면", r.getSleepStart(), r.getSleepEnd()));
         if (r.getSupplementarySleepStart() != null) {
