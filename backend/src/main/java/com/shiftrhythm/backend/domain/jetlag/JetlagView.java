@@ -4,7 +4,7 @@ public record JetlagView(
         int utcOffset,
         String city,
         String message,
-        long weeklyTravelHours,
-        String weeklyMessage
+        long dailyTravelHours,
+        String dailyMessage
 ) {
 }
