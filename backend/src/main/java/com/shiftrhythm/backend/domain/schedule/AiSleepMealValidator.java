@@ -80,7 +80,8 @@ public final class AiSleepMealValidator {
     public static LocalTime clampMainMeal(LocalTime candidate, LocalTime bigMealCutoff,
                                            LocalTime nightRestrictionStart, LocalTime nightRestrictionEnd) {
         if (isWithin(candidate, nightRestrictionStart, nightRestrictionEnd)) {
-            return nightRestrictionEnd;
+            // 컷오프 자체가 제한 구간 안이면(야간 근무 후 이른 아침에 자는 경우) 구간 끝은 이미 컷오프를 넘긴 시각이다
+            return isWithin(bigMealCutoff, nightRestrictionStart, nightRestrictionEnd) ? bigMealCutoff : nightRestrictionEnd;
         }
         long fromRestrictionEndToCandidate = SleepTimeMath.minutesBetween(nightRestrictionEnd, candidate);
         long fromRestrictionEndToCutoff = SleepTimeMath.minutesBetween(nightRestrictionEnd, bigMealCutoff);

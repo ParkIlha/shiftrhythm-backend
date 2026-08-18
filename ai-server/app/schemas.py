@@ -5,10 +5,10 @@ from pydantic import BaseModel
 # --- B-1 parse-schedule ---
 class ScheduleReq(BaseModel):
     imageBase64: str
-    # 아래 3개는 백엔드 온보딩이 아직 안 보내므로 선택값. 없으면:
-    #   myRowLabel 없음 → 표에 행이 하나뿐일 때만 정상(여러 명이면 422)
-    #   year/month 없음 → 오늘 기준 연/월로 조립
+    # myRowLabel 없음 → 표에 행이 하나뿐일 때만 정상(여러 명이면 422)
     myRowLabel: str | None = None
+    # 연/월은 기본적으로 AI가 사진에서 직접 읽으므로 선택값이다. 표에 "20xx년 _월"처럼 비어 있는
+    # 양식도 있어서, 그때 쓸 폴백으로 프론트가 알고 있으면 보내면 된다(없으면 오늘 기준).
     year: int | None = None
     month: int | None = None
 
@@ -44,7 +44,7 @@ class DisruptionRes(BaseModel):
     eventType: str
     delayMinutes: int
     confirmedAt: str        # ISO8601, 서버가 생성
-    reasonCategory: str     # LATE_CLOCKOUT | DINNER_GATHERING | SHIFT_CHANGE | OTHER
+    reasonCategory: str     # LATE_CLOCKOUT | EARLY_CLOCKOUT | SHIFT_CHANGE | PERSONAL_SCHEDULE | OTHER
 
 
 # --- B-3 suggest-adjustment (백엔드 DTO 기준: 절대시각 in/out) ---

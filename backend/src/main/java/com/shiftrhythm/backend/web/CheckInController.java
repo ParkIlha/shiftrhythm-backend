@@ -2,8 +2,11 @@ package com.shiftrhythm.backend.web;
 
 import com.shiftrhythm.backend.domain.checkin.CheckInService;
 import com.shiftrhythm.backend.domain.checkin.entity.DailyCheckIn;
+import com.shiftrhythm.backend.domain.schedule.ShiftType;
+import com.shiftrhythm.backend.domain.schedule.entity.ShiftTypeDefault;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.ShiftRepository;
+import com.shiftrhythm.backend.domain.schedule.repository.ShiftTypeDefaultRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,10 +28,13 @@ public class CheckInController {
 
     private final CheckInService checkInService;
     private final ShiftRepository shiftRepository;
+    private final ShiftTypeDefaultRepository shiftTypeDefaultRepository;
 
-    public CheckInController(CheckInService checkInService, ShiftRepository shiftRepository) {
+    public CheckInController(CheckInService checkInService, ShiftRepository shiftRepository,
+                             ShiftTypeDefaultRepository shiftTypeDefaultRepository) {
         this.checkInService = checkInService;
         this.shiftRepository = shiftRepository;
+        this.shiftTypeDefaultRepository = shiftTypeDefaultRepository;
     }
 
     public record WakeRequest(
@@ -105,9 +111,17 @@ public class CheckInController {
     public ClockOutResponse clockout(@RequestBody ClockOutRequest request) {
         DailyCheckIn saved = checkInService.clockout(request.date(), request.actualClockOut(), request.nightHungerScore());
 
+        // 그날만 시각을 따로 지정한 경우가 아니면 근무유형 기본 종료시각이 예정 퇴근시각이다
+        // (override만 보면 평범한 날은 늘 null이라 지연이 0분으로 잡힌다).
         LocalTime scheduledClockOut = shiftRepository
-                .findByUserProfileIdAndDate(UserProfile.SINGLETON_ID, request.date())
-                .map(s -> s.getEndTimeOverride())
+                .findByUserProfileIdAndDate(CurrentUser.id(), request.date())
+                .filter(s -> s.getShiftType() != ShiftType.OFF)
+                .map(s -> s.getEndTimeOverride() != null
+                        ? s.getEndTimeOverride()
+                        : shiftTypeDefaultRepository
+                                .findByUserProfileIdAndShiftType(CurrentUser.id(), s.getShiftType())
+                                .map(ShiftTypeDefault::getDefaultEndTime)
+                                .orElse(null))
                 .orElse(null);
         long delayMinutes = 0;
         if (scheduledClockOut != null) {

@@ -165,7 +165,10 @@ public final class SleepBlockCalculator {
         }
         Anchor anchor = AnchorSizer.size(ctx.prevSleepBlock(), ctx.rhythmPreference());
 
-        if (ctx.offDayIndex() == ctx.offDayTotal()) {
+        // 다음 근무 시작시각을 아는 경우에만 거기 맞춰 기상시각을 역산한다. 등록된 근무표 범위를 벗어나
+        // 다음 근무일을 아직 모르면(next가 OFF 폴백이라 startTime==null) 역산할 기준이 없으므로
+        // 아래의 앵커 기반 계산으로 넘어간다 — 그대로 두면 NPE로 500이 났었다.
+        if (ctx.offDayIndex() == ctx.offDayTotal() && ctx.next() != null && ctx.next().startTime() != null) {
             SleepBlock block = wakeAnchoredBlock(ctx.next().startTime(), ctx.prepMinutes(), ctx.commuteMinutes(), ctx.targetSleepMinutes());
             return bufferedBelow(block.withAnchor(anchor));
         }

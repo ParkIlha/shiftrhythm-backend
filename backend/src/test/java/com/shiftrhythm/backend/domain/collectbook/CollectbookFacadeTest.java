@@ -141,11 +141,11 @@ class CollectbookFacadeTest {
         YearMonth thisMonth = YearMonth.of(2020, 9);
 
         save(prevMonth.atEndOfMonth(), LocalTime.of(7, 0));   // offset 9
-        save(thisMonth.atDay(1), LocalTime.of(22, 0));         // offset -6 -> |(-6)-9|=15
+        save(thisMonth.atDay(1), LocalTime.of(22, 0));         // offset -6 -> 원형 거리 min(15, 9) = 9
 
         CollectbookView view = collectbookFacade.get(thisMonth);
 
-        assertThat(view.totalTravelHours()).isEqualTo(15);
-        assertThat(view.maxDailyTravelHours()).isEqualTo(15);
+        assertThat(view.totalTravelHours()).isEqualTo(9);
+        assertThat(view.maxDailyTravelHours()).isEqualTo(9);
     }
 }

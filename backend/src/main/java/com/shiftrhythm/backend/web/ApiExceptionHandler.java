@@ -19,7 +19,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ParseFailedException.class)
     public ResponseEntity<Map<String, String>> handleParseFailed(ParseFailedException e) {
         return ResponseEntity.unprocessableEntity()
-                .body(Map.of("error", "PARSE_FAILED", "message", "근무 관련 내용으로 다시 입력해주세요"));
+                .body(Map.of("error", "PARSE_FAILED", "message", e.getMessage()));
     }
 
     @ExceptionHandler(InvalidShiftTransitionException.class)

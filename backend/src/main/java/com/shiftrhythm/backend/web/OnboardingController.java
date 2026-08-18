@@ -8,6 +8,7 @@ import com.shiftrhythm.backend.domain.routine.ParseFailedException;
 import com.shiftrhythm.backend.domain.routine.ScheduleDayView;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
+import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,6 +17,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,6 +57,14 @@ public class OnboardingController {
             summary = "근무표 사진 AI 파싱",
             description = """
                     근무표 사진을 AI로 분석해 shiftTypes(근무유형별 시작/종료 시각)와 shifts(날짜별 근무유형)를 반환한다.
+
+                    + shifts[].shiftType은 근무표에 적힌 코드 그대로다("D", "나이트", "1조"...). 그 코드가
+                    + DAY/EVENING/NIGHT/OFF 중 무엇인지는 shiftTypes[]에서 같은 shiftType을 찾아 mapped를 보면 된다.
+                    + 달력에 근무유형을 칠할 때도, /api/onboarding/schedule로 확정할 때도 이 mapped 값을 쓴다
+                    + (확정 API는 ShiftType enum만 받는다). confidence가 low면 AI도 확신이 없다는 뜻이라
+                    + 확인 화면에서 사용자에게 물어보는 게 좋다.
+                    + 근무표에 시간표(범례)가 없으면 startTime/endTime은 AI가 추측하지 않고 교대 프리셋
+                    + 기본값이 들어간다(3교대 06-14/14-22/22-06, 2교대 08-20/20-08).
                     사진에 여러 명의 행이 있어 AI가 본인 행을 특정하지 못하면 422 { "error": "ROW_LABEL_REQUIRED", "rowLabels": [...] }
                     를 반환하니, 이 경우 rowLabels를 사용자에게 보여주고 고른 값을 myRowLabel에 담아 재호출한다.
                     이 엔드포인트는 파싱 결과만 반환하며 DB에 아무것도 저장하지 않는다 — 사용자가 결과를 검토/수정한 뒤
@@ -80,8 +90,8 @@ public class OnboardingController {
 
     public record ProfileRequest(
             @Schema(description = "사용자 이름/닉네임, 최대 20자") @NotBlank @Size(max = 20) String name,
-            @Schema(description = "출근 준비시간(분), 15분 단위 입력 권장") int commuteMinutes,
-            @Schema(description = "편도 통근시간(분), 15분 단위 입력 권장") int prepMinutes,
+            @Schema(description = "편도 통근시간(분), 15분 단위 입력 권장") int commuteMinutes,
+            @Schema(description = "출근 준비시간(분), 15분 단위 입력 권장") int prepMinutes,
             @Schema(description = "개인 목표 수면시간(분), 기본 420(=7시간)") int targetSleepMinutes,
             @Schema(description = "근무 중 낮잠/휴식 가능 여부") boolean napAvailable,
             @Schema(description = "napAvailable=true일 때만 사용하는 가능 시간(분)", nullable = true) Integer napAvailableMinutes,
@@ -109,12 +119,40 @@ public class OnboardingController {
     public record OkResponse(boolean ok) {
     }
 
-    @Operation(summary = "개인화 데이터 등록/수정", description = "온보딩 1단계. 이미 등록된 프로필이 있으면 덮어쓴다(단일세션이라 프로필은 항상 1개).")
+    public record ProfileResponse(boolean ok, Long userId) {
+    }
+
+    public record ProfileView(String name, int commuteMinutes, int prepMinutes, int targetSleepMinutes,
+                              boolean napAvailable, Integer napAvailableMinutes, RhythmPreference rhythmPreference) {
+    }
+
+    @Operation(
+            summary = "개인화 데이터 등록/수정",
+            description = """
+                    온보딩 1단계. 로그인이 없으므로 이 호출이 곧 사용자 발급이다.
+                    X-User-Id 헤더 없이 호출하면 새 사용자를 만들고 응답의 userId를 돌려준다 —
+                    프론트는 이 값을 localStorage에 저장해 이후 모든 요청에 X-User-Id 헤더로 붙인다.
+                    헤더를 달고 호출하면 그 사용자의 프로필을 덮어쓴다(마이페이지 수정).
+                    '새로 시작하기'는 저장된 userId를 지우고 헤더 없이 이 API를 다시 호출하는 것이다.
+                    """
+    )
     @PostMapping("/api/onboarding/profile")
-    public OkResponse profile(@Valid @RequestBody ProfileRequest request) {
-        onboardingService.upsertProfile(request.name(), request.commuteMinutes(), request.prepMinutes(), request.targetSleepMinutes(),
-                request.napAvailable(), request.napAvailableMinutes(), request.rhythmPreference());
-        return new OkResponse(true);
+    public ProfileResponse profile(@Valid @RequestBody ProfileRequest request) {
+        UserProfile saved = onboardingService.upsertProfile(request.name(), request.commuteMinutes(), request.prepMinutes(),
+                request.targetSleepMinutes(), request.napAvailable(), request.napAvailableMinutes(), request.rhythmPreference());
+        return new ProfileResponse(true, saved.getId());
+    }
+
+    @Operation(
+            summary = "프로필 조회",
+            description = "마이페이지용. X-User-Id 헤더가 가리키는 프로필을 반환한다. 아직 온보딩 전이면 204(본문 없음)."
+    )
+    @GetMapping("/api/onboarding/profile")
+    public ResponseEntity<ProfileView> getProfile() {
+        return onboardingService.findProfile()
+                .map(p -> ResponseEntity.ok(new ProfileView(p.getName(), p.getCommuteMinutes(), p.getPrepMinutes(),
+                        p.getTargetSleepMinutes(), p.isNapAvailable(), p.getNapAvailableMinutes(), p.getRhythmPreference())))
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @Operation(

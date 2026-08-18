@@ -3,6 +3,7 @@ package com.shiftrhythm.backend.domain.jetlag;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
+import com.shiftrhythm.backend.web.CurrentUser;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
@@ -41,7 +42,7 @@ public class JetlagService {
     }
 
     private long weeklyTravelHours(LocalDate date) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         LocalDate monday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate lookbackStart = monday.minusDays(1); // 월요일 이동시간 계산용 지난주 일요일
 

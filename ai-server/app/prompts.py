@@ -8,8 +8,16 @@ GUARDRAIL = (
 
 # --- B-2 parse-disruption ---
 DISRUPTION_SYSTEM = GUARDRAIL + (
-    "\n사용자가 자유롭게 적은 한 줄을 구조화된 변경 이벤트로 분류하라. "
-    "근무·수면·일정과 무관한 내용이면 not_shift_related 도구를 써라."
+    "\n사용자가 자유롭게 적은 한 줄을 받아 아래 둘 중 하나를 반드시 호출하라."
+    "\n- report_disruption: 오늘 계획을 다시 짜야 하는 입력. 퇴근 지연·근무 추가처럼 근무가 바뀐 경우뿐 아니라, "
+    "회식·약속·병원처럼 수면을 밀어내는 개인 일정(PERSONAL_SCHEDULE), "
+    "'카페인 때문에 잠이 안 온다'·'잠이 안 와서 늦게 잤다'처럼 실제 수면 시각이 밀리는 상황(SLEEP_SHORTAGE)도 포함이다. "
+    "단 얼마나 밀리는지가 입력에 있거나 분명히 계산되는 경우에만 부른다('2시간 늦어졌다', '3시에 잠들었다')."
+    "\n- not_shift_related: 계획을 바꿀 필요가 없거나, 바꿔야 하지만 얼마나 밀리는지 아직 모르는 입력. "
+    "거절하지 말고 reply 에 답을 직접 써라. 밀린 시간을 모르면 숫자를 지어내지 말고 되물어라 "
+    "(예: '잠이 안 오시는군요. 몇 시쯤 잠들 것 같으세요?'). "
+    "수면·식사·카페인 질문이면 교대근무자 기준으로 실질적인 조언을 하고, "
+    "정말 무관한 잡담이면 가볍게 받아준 뒤 계획 얘기로 돌아오게 유도하라."
 )
 DISRUPTION_TOOLS = [
     {
@@ -28,7 +36,9 @@ DISRUPTION_TOOLS = [
                 },
                 "reasonCategory": {
                     "type": "string",
-                    "enum": ["LATE_CLOCKOUT", "DINNER_GATHERING", "SHIFT_CHANGE", "OTHER"],
+                    # 백엔드 ReplanReason enum과 반드시 일치해야 한다(다르면 confirm 단계에서 500).
+                    "description": "회식·모임·약속처럼 근무 자체와 무관한 개인 일정은 PERSONAL_SCHEDULE",
+                    "enum": ["LATE_CLOCKOUT", "EARLY_CLOCKOUT", "SHIFT_CHANGE", "PERSONAL_SCHEDULE", "OTHER"],
                 },
             },
             "required": ["eventType", "delayMinutes", "reasonCategory"],
@@ -36,8 +46,14 @@ DISRUPTION_TOOLS = [
     },
     {
         "name": "not_shift_related",
-        "description": "근무·수면·일정과 무관한 입력",
-        "input_schema": {"type": "object", "properties": {}},
+        "description": "계획을 다시 짤 필요는 없는 입력 — reply 로 사용자에게 직접 답한다",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reply": {"type": "string", "description": "사용자에게 그대로 보일 한국어 1~2문장"},
+            },
+            "required": ["reply"],
+        },
     },
 ]
 
@@ -51,8 +67,13 @@ SUGGEST_SYSTEM = GUARDRAIL + (
     "\n- 초안에서 크게 벗어나지 마라. 조정은 보통 1시간 이내가 적절하다."
     "\n- 초안보다 수면을 짧게 만들지 마라. 조정할 근거가 없으면 초안 값을 그대로 반환하라."
     "\n- ankerBlock이 있으면 그 구간과 최대한 겹치게 유지하라."
-    "\n- 주요식사는 bigMealCutoff 이후로 미루지 말고, "
-    "nightRestrictionStart~End 구간(야간 소화 제한)에는 배치하지 마라."
+    "\n- 주요식사(큰 식사)는 bigMealCutoff 이후로 미루지 마라."
+    "\n- nightRestrictionStart~End 는 생체 야간(소화 능력이 가장 낮은 구간)이다. "
+    "이 구간에 배치하지 말아야 하는 건 주요식사뿐이다 — 그 시간에 깨어 근무 중이라면 굶기지 말고 "
+    "subMealTime 으로 가벼운 식사를 넣어라. 야간근무 중 가벼운 식사는 권장된다."
+    "\n- 주요식사와 주수면 시작 사이가 6시간 넘게 벌어지면 그 사이에 subMealTime 을 넣어라."
+    "\n- recentNightHunger 가 높으면(평균 4 이상) snackNeeded=true 로 두고 "
+    "취침 1시간 전쯤으로 snackTime 을 잡아라. 그렇지 않으면 굳이 넣지 마라."
     "\n- reason은 사용자에게 보일 한국어 한 문장으로 자연스럽게."
 )
 SUGGEST_TOOLS = [
@@ -100,7 +121,14 @@ SCHEDULE_SYSTEM = GUARDRAIL + (
     "확신이 없으면 UNKNOWN + confidence low 로 정직하게 표시하라. "
     "틀린 매핑은 사용자의 수면 계획을 통째로 망가뜨리므로, 모르는 것을 모른다고 하는 편이 훨씬 낫다. "
     "표에 각 코드의 시간표(범례)가 있으면 startTime/endTime을 채우고, 없으면 비워라(추측 금지). "
-    "날짜는 '며칠(1~31)'만 읽어라 — 연·월 조립은 코드가 한다. "
+    "날짜는 표에 실제로 적힌 값을 그대로 읽어라 — 칸이 몇 번째 열인지가 아니라 '9/1', '9월 1일' 같은 "
+    "표기 자체를 읽어서 월(month, 1~12)을 채워라. 표가 두 달에 걸쳐 있으면(예: 8/28~9/3) 칸마다 실제 "
+    "해당 월을 정확히 구분해서 넣어라 — 표 앞부분이라고 다 같은 달이라 가정하지 마라. "
+    "월이 표에 아예 안 적혀 있으면 month를 생략해라 — 0이나 1 같은 값을 지어내지 마라(코드가 채운다). "
+    "특히 헤더가 '1 2 3 …' 처럼 며칠만 있거나 요일(월·화·수)만 있는 표가 흔하다. "
+    "요일의 '월'은 월요일이지 1월이 아니다. 이런 표는 month 없이 day만 채워라. "
+    "연도도 마찬가지로 표에 적혀 있을 때만 year를 채워라. "
+    "요일 표기(예: '9/1(일)')가 있으면 참고해서 월 판단의 근거로 삼아도 좋다. "
     "내 행을 찾을 수 없거나 표를 신뢰성 있게 읽을 수 없으면 image_unreadable 도구를 써라(억지로 채우지 마라)."
 )
 SCHEDULE_TOOLS = [
@@ -139,7 +167,9 @@ SCHEDULE_TOOLS = [
                     "items": {
                         "type": "object",
                         "properties": {
-                            "day": {"type": "integer", "description": "며칠(1~31), 열 위치"},
+                            "day": {"type": "integer", "description": "표에 적힌 며칠(1~31)"},
+                            "month": {"type": "integer", "description": "표에 적힌 실제 월(1~12). 열 순서가 아니라 표기 그대로. 표에 월이 안 적혀 있으면 생략"},
+                            "year": {"type": "integer", "description": "표에 연도가 적혀 있으면 그 값(예: 2024). 안 보이면 생략"},
                             "shiftType": {"type": "string", "description": "그 날 코드 그대로. 쉬면 OFF"},
                         },
                         "required": ["day", "shiftType"],

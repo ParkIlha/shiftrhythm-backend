@@ -18,6 +18,20 @@ def hhmm(value, default=None):
         return default
 
 
+MAIN_MEAL_BEFORE_CUTOFF_MINUTES = 90
+
+
+def _safe_main_meal(mc) -> str:
+    """AI 값을 쓸 수 없을 때의 주요식사 시각.
+
+    bigMealCutoff 는 "이 시각 이후 금지"인 경계선이라 그대로 추천값으로 쓰면 식사가 취침에 딱 붙는다.
+    90분 앞으로 당길 뿐, 생체 야간 구간 회피는 백엔드 clampMainMeal 이 어차피 다시 하므로 여기선 안 한다.
+    """
+    h, m = mc.bigMealCutoff.split(":")
+    total = (int(h) * 60 + int(m) - MAIN_MEAL_BEFORE_CUTOFF_MINUTES) % 1440
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
 def _draft(req: SuggestReq, reason: str) -> SuggestRes:
     """규칙 기반 초안을 그대로 반환 — AI 실패 시 안전값."""
     c = req.currentSleepBlock
@@ -30,7 +44,7 @@ def _draft(req: SuggestReq, reason: str) -> SuggestRes:
             napMinutes=c.napMinutes,
             reason=reason,
         ),
-        meal=MealSuggest(mainMealTime=req.mealConstraints.bigMealCutoff, reason=reason),
+        meal=MealSuggest(mainMealTime=_safe_main_meal(req.mealConstraints), reason=reason),
     )
 
 
@@ -46,7 +60,7 @@ def suggest_adjustment(req: SuggestReq):
     # 필수 시각이 깨졌으면 그 값만 초안으로 되돌린다. 범위 clamp 는 백엔드가.
     start = hhmm(sleep.get("mainSleepStart"), c.mainSleepStart)
     end = hhmm(sleep.get("mainSleepEnd"), c.mainSleepEnd)
-    main_meal = hhmm(meal.get("mainMealTime"), req.mealConstraints.bigMealCutoff)
+    main_meal = hhmm(meal.get("mainMealTime"), _safe_main_meal(req.mealConstraints))
     snack_time = hhmm(meal.get("snackTime"))
 
     return SuggestRes(
@@ -76,6 +90,8 @@ def suggest_adjustment(req: SuggestReq):
 
 
 if __name__ == "__main__":
+    from types import SimpleNamespace
+
     # ponytail 자체점검: 시각 가드 + AI 실패 시 초안 폴백
     assert hhmm("09:00") == "09:00"
     assert hhmm("7:30") == "07:30"           # 한자리 시 정규화
@@ -93,5 +109,7 @@ if __name__ == "__main__":
     )
     d = _draft(req, FALLBACK_REASON)
     assert (d.sleep.mainSleepStart, d.sleep.mainSleepEnd) == ("07:30", "12:00")
-    assert d.meal.mainMealTime == "06:00" and d.meal.snackNeeded is False
+    # 컷오프 경계선(06:00)에 딱 붙이지 않고 90분 앞으로 — 자정 넘김 포함
+    assert d.meal.mainMealTime == "04:30" and d.meal.snackNeeded is False
+    assert _safe_main_meal(SimpleNamespace(bigMealCutoff="01:00")) == "23:30"
     print("ok")

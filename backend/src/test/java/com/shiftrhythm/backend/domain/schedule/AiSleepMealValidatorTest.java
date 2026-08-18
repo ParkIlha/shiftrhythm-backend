@@ -84,6 +84,14 @@ class AiSleepMealValidatorTest {
         assertThat(result).isEqualTo(LocalTime.of(6, 0));
     }
 
+    /** 야간 근무 후 07:30 취침 → 컷오프 05:30. 제한 구간 끝(06:00)으로 밀면 컷오프를 넘겨버린다. */
+    @Test
+    void clampMainMeal_whenCutoffIsInsideNightRestriction_doesNotOvershootCutoff() {
+        LocalTime result = AiSleepMealValidator.clampMainMeal(
+                LocalTime.of(2, 0), LocalTime.of(5, 30), LocalTime.of(0, 0), LocalTime.of(6, 0));
+        assertThat(result).isEqualTo(LocalTime.of(5, 30));
+    }
+
     @Test
     void clampMainMeal_beyondCutoff_isClampedToCutoff() {
         LocalTime result = AiSleepMealValidator.clampMainMeal(

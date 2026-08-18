@@ -5,6 +5,7 @@ import com.shiftrhythm.backend.domain.jetlag.JetlagMapper;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
+import com.shiftrhythm.backend.web.CurrentUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +37,7 @@ public class CollectbookFacade {
     }
 
     public CollectbookView get(YearMonth month) {
-        Long userId = UserProfile.SINGLETON_ID;
+        Long userId = CurrentUser.id();
         LocalDate from = month.atDay(1);
         LocalDate to = month.atEndOfMonth();
 
