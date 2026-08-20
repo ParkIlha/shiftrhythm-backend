@@ -36,7 +36,7 @@ class ReportFacadeTest {
 
     private static MealTimes mealTimes() {
         return new MealTimes(LocalTime.of(7, 0), null, null,
-                LocalTime.of(21, 0), LocalTime.of(0, 0), LocalTime.of(6, 0), LocalTime.of(18, 0));
+                LocalTime.of(21, 0), LocalTime.of(18, 0));
     }
 
     /** date의 start~end 구간을 LocalDateTime으로 만든다. end가 start보다 이르면 자정을 넘긴 것으로 본다. */

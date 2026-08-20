@@ -110,7 +110,7 @@ public class RoutineComputationService {
         );
 
         SleepBlockResult result = SleepBlockCalculator.calculate(ctx);
-        var mealBlock = MealBlockCalculator.calculate(result.block().mainSleepStart().toLocalTime());
+        var mealBlock = MealBlockCalculator.calculate(result.block());
 
         return new RoutineComputation(date, mode, modeReason, today, next, result.block(), result.window(), mealBlock, recentDeficit);
     }

@@ -9,6 +9,7 @@ import com.shiftrhythm.backend.domain.ai.dto.SuggestAdjustmentResponse;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.policy.AiSleepMealValidator;
+import com.shiftrhythm.backend.domain.schedule.policy.MealBlockCalculator;
 import com.shiftrhythm.backend.domain.schedule.util.AppClock;
 import com.shiftrhythm.backend.domain.schedule.MealBlock;
 import com.shiftrhythm.backend.domain.schedule.RoutineMode;
@@ -43,7 +44,8 @@ public class ReplanFacade {
     private static final Logger log = LoggerFactory.getLogger(ReplanFacade.class);
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final long TTL_MINUTES = 5;
-    private static final int SNACK_BEFORE_SLEEP_MINUTES = 60;
+    private static final String NIGHT_RESTRICTION_START = "00:00";
+    private static final String NIGHT_RESTRICTION_END = "06:00";
 
     private final AiScheduleAdapter aiScheduleAdapter;
     private final RoutineComputationService computationService;
@@ -73,7 +75,7 @@ public class ReplanFacade {
                                   Instant expiresAt) {
     }
 
-    public record RoutineSnapshot(String mode, String sleepStart, String sleepEnd, String mainMeal, String subMeal) {
+    public record RoutineSnapshot(String mode, String sleepStart, String sleepEnd, String mainMeal1, String mainMeal2) {
     }
 
     public record PreviewResult(UUID previewId, String eventType, String reasonCategory,
@@ -106,7 +108,7 @@ public class ReplanFacade {
         SuggestAdjustmentResponse suggestion = aiScheduleAdapter.suggestAdjustment(suggestRequest).orElse(null);
 
         SleepBlock finalSleep = resolveFinalSleep(recomputed, suggestion);
-        MealTimes finalMeal = resolveFinalMeal(recomputed.mealBlock(), suggestion, finalSleep);
+        MealTimes finalMeal = resolveFinalMeal(suggestion, finalSleep);
 
         LocalDateTime adjustedShiftEndTime = SHIFT_BLOCK_CHANGING_EVENT_TYPES.contains(disruption.eventType())
                 ? recomputed.today().endTime()
@@ -184,9 +186,8 @@ public class ReplanFacade {
                 sb.ankerBlockEnd() == null ? null : sb.ankerBlockEnd().toLocalTime().format(TIME_FORMAT)
         );
         SuggestAdjustmentRequest.MealConstraints mealConstraintsDto = new SuggestAdjustmentRequest.MealConstraints(
-                computation.mealBlock().bigMealCutoff().format(TIME_FORMAT),
-                computation.mealBlock().nightRestrictionStart().format(TIME_FORMAT),
-                computation.mealBlock().nightRestrictionEnd().format(TIME_FORMAT)
+                computation.mealBlock().bigMealCutoff().toLocalTime().format(TIME_FORMAT),
+                NIGHT_RESTRICTION_START, NIGHT_RESTRICTION_END
         );
         SuggestAdjustmentRequest.History history = new SuggestAdjustmentRequest.History(
                 List.of(), List.of(), List.of(), List.of(), List.of(),
@@ -218,30 +219,37 @@ public class ReplanFacade {
         return clamped;
     }
 
-    private MealTimes resolveFinalMeal(MealBlock mealBlock, SuggestAdjustmentResponse suggestion, SleepBlock finalSleep) {
+    /**
+     * 식사 clamp는 확정된 최종 수면(finalSleep) 기준이어야 한다 — recomputed.mealBlock()은 규칙 기반
+     * 초안(AI 조정 전) 수면 기준이라, 실제로 저장될 수면 시각과 다를 수 있기 때문.
+     */
+    private MealTimes resolveFinalMeal(SuggestAdjustmentResponse suggestion, SleepBlock finalSleep) {
+        MealBlock finalMealBlock = MealBlockCalculator.calculate(finalSleep);
         if (suggestion == null) {
-            return new MealTimes(mealBlock.bigMealCutoff(), null, null, mealBlock.bigMealCutoff(), mealBlock.nightRestrictionStart(), mealBlock.nightRestrictionEnd(), mealBlock.caffeineCutoff());
+            LocalTime cutoff = finalMealBlock.bigMealCutoff().toLocalTime();
+            return new MealTimes(cutoff, cutoff, null, cutoff, finalMealBlock.caffeineCutoff().toLocalTime());
         }
-        LocalTime mainMeal = AiSleepMealValidator.clampMainMeal(
-                LocalTime.parse(suggestion.meal().mainMealTime()),
-                mealBlock.bigMealCutoff(), mealBlock.nightRestrictionStart(), mealBlock.nightRestrictionEnd());
-        LocalTime subMeal = suggestion.meal().subMealTime() == null ? null : LocalTime.parse(suggestion.meal().subMealTime());
-        LocalTime snackTime = suggestion.meal().snackNeeded() && suggestion.meal().snackTime() != null
+        LocalTime mainMeal1 = AiSleepMealValidator.clampMeal(
+                LocalTime.parse(suggestion.meal().mainMealTime()), finalMealBlock, true);
+        // TODO(ai-server mealTime2 필수화 시 제거): mainMeal2는 항상 필수인데 ai-server 계약은
+        // 아직 subMealTime을 선택값으로 취급한다 — AI가 안 주면 안전값(bigMealCutoff)으로 채우는
+        // 임시방편. ai-server가 mealTime2를 필수 응답으로 바꾸면 이 대체 로직을 지우고
+        // null이면 이번 AI 응답 전체를 실패 취급(기존 값 유지)하도록 바꿀 것.
+        LocalTime mainMeal2Candidate = suggestion.meal().subMealTime() == null
+                ? finalMealBlock.bigMealCutoff().toLocalTime()
+                : LocalTime.parse(suggestion.meal().subMealTime());
+        LocalTime mainMeal2 = AiSleepMealValidator.clampMeal(mainMeal2Candidate, finalMealBlock, true);
+        LocalTime snackCandidate = suggestion.meal().snackNeeded() && suggestion.meal().snackTime() != null
                 ? LocalTime.parse(suggestion.meal().snackTime())
                 : null;
-        if (snackTime != null) {
-            long toSnack = SleepTimeMath.minutesBetween(mealBlock.nightRestrictionEnd(), snackTime);
-            long toSleepStart = SleepTimeMath.minutesBetween(mealBlock.nightRestrictionEnd(), finalSleep.mainSleepStart().toLocalTime());
-            if (toSnack > toSleepStart) {
-                snackTime = finalSleep.mainSleepStart().toLocalTime().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
-            }
-        }
-        return new MealTimes(mainMeal, subMeal, snackTime, mealBlock.bigMealCutoff(), mealBlock.nightRestrictionStart(), mealBlock.nightRestrictionEnd(), mealBlock.caffeineCutoff());
+        LocalTime snackTime = snackCandidate == null ? null : AiSleepMealValidator.clampMeal(snackCandidate, finalMealBlock, false);
+        return new MealTimes(mainMeal1, mainMeal2, snackTime,
+                finalMealBlock.bigMealCutoff().toLocalTime(), finalMealBlock.caffeineCutoff().toLocalTime());
     }
 
     private RoutineSnapshot snapshotOf(String mode, LocalTime sleepStart, LocalTime sleepEnd, MealTimes mealTimes) {
         return new RoutineSnapshot(mode, sleepStart.format(TIME_FORMAT), sleepEnd.format(TIME_FORMAT),
-                mealTimes.mainMeal() == null ? null : mealTimes.mainMeal().format(TIME_FORMAT),
-                mealTimes.subMeal() == null ? null : mealTimes.subMeal().format(TIME_FORMAT));
+                mealTimes.mainMeal1() == null ? null : mealTimes.mainMeal1().format(TIME_FORMAT),
+                mealTimes.mainMeal2() == null ? null : mealTimes.mainMeal2().format(TIME_FORMAT));
     }
 }

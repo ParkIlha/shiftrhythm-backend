@@ -28,7 +28,7 @@ class JetlagServiceTest {
 
     private static MealTimes mealTimes() {
         return new MealTimes(LocalTime.of(7, 0), null, null,
-                LocalTime.of(21, 0), LocalTime.of(0, 0), LocalTime.of(6, 0), LocalTime.of(18, 0));
+                LocalTime.of(21, 0), LocalTime.of(18, 0));
     }
 
     private void save(LocalDate date, LocalTime wakeTime) {
