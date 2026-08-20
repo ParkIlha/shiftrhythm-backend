@@ -346,6 +346,10 @@ public class OnboardingService {
                 ? finalMealBlock.bigMealCutoff().toLocalTime()
                 : LocalTime.parse(response.meal().subMealTime());
         LocalTime mainMeal2 = AiSleepMealValidator.clampMeal(mainMeal2Candidate, finalMealBlock, true);
+        if (AiSleepMealValidator.mealsCollapsed(mainMeal1, mainMeal2)) {
+            log.warn("clamp 이후 mainMeal1/mainMeal2가 30분 이내로 붙었습니다(사실상 한 끼로 뭉개짐 가능): "
+                    + "date={}, mainMeal1={}, mainMeal2={}", r.getDate(), mainMeal1, mainMeal2);
+        }
         LocalTime snackCandidate = response.meal().snackNeeded() && response.meal().snackTime() != null
                 ? LocalTime.parse(response.meal().snackTime())
                 : null;

@@ -239,6 +239,10 @@ public class ReplanFacade {
                 ? finalMealBlock.bigMealCutoff().toLocalTime()
                 : LocalTime.parse(suggestion.meal().subMealTime());
         LocalTime mainMeal2 = AiSleepMealValidator.clampMeal(mainMeal2Candidate, finalMealBlock, true);
+        if (AiSleepMealValidator.mealsCollapsed(mainMeal1, mainMeal2)) {
+            log.warn("clamp 이후 mainMeal1/mainMeal2가 30분 이내로 붙었습니다(사실상 한 끼로 뭉개짐 가능): "
+                    + "date={}, mainMeal1={}, mainMeal2={}", finalSleep.mainSleepStart().toLocalDate(), mainMeal1, mainMeal2);
+        }
         LocalTime snackCandidate = suggestion.meal().snackNeeded() && suggestion.meal().snackTime() != null
                 ? LocalTime.parse(suggestion.meal().snackTime())
                 : null;

@@ -11,8 +11,10 @@ import java.time.LocalTime;
  * 기준으로 검증하고 벗어난 값을 clamp한다.
  *
  * 수면 쪽은 SleepWindow/SleepBlock이 날짜를 포함한 LocalDateTime이라 순서 비교(isBefore/isAfter)만으로
- * 충분하다. 식사 쪽(clampMeal)은 AI가 날짜 없는 "HH:mm"으로 돌려주므로, mainSleepStart와 가장 가까운
- * 캘린더 날짜에 anchor한 뒤 LocalDateTime으로 비교한다.
+ * 충분하다. 식사 쪽(clampMeal)은 AI가 날짜 없는 "HH:mm"으로 돌려주므로, mainSleepStart와 같은 캘린더
+ * 날짜에 anchor한 뒤 LocalDateTime으로 비교한다. 컷오프만은 예외로, anchor된 시각이 오늘의
+ * mainSleepStart 이전이면 "오늘 컷오프", 이후(=주수면이 끝난 뒤 다음 근무/자유시간 구간)면
+ * "내일 컷오프"를 적용한다 — 자세한 이유는 clampMeal 주석 참고.
  */
 public final class AiSleepMealValidator {
 
@@ -79,35 +81,40 @@ public final class AiSleepMealValidator {
      * 1) 수면블록(주+보조) 회피 — 자는 동안 못 먹으니 반드시 하드.
      * 2) applyCutoff가 true면 bigMealCutoff도 하드 적용(간식은 컷오프가 없으므로 false로 호출).
      *
-     * candidate는 AI가 "HH:mm"(날짜 없음)으로 돌려준 값이라, mainSleepStart와 가장 가까운 캘린더
-     * 날짜로 먼저 anchor한 뒤 판정한다.
+     * candidate는 AI가 "HH:mm"(날짜 없음)으로 돌려준 값이라, mainSleepStart와 같은 캘린더 날짜에
+     * anchor한 뒤 판정한다(NIGHT류는 주수면이 하루 중 이른 시각이라, 주수면 끝난 뒤~보조수면 전
+     * 오후~저녁 식사도 "같은 날짜"로 자연스럽게 떨어진다).
+     *
+     * 컷오프(bigMealCutoff = 오늘 mainSleepStart - 2h)는 "오늘 주수면 시작 전" 식사에만 맞는 기준이다.
+     * 주수면이 끝난 뒤(오후~저녁)에 배치된 식사는 그다음으로 다가올 잠이 오늘의 mainSleepStart가
+     * 아니라 "내일" mainSleepStart이므로, 그 경우엔 컷오프도 하루 뒤(mb.bigMealCutoff() + 1일)로
+     * 옮겨서 비교해야 한다. 이걸 안 하면(예전 버그) 오후에 정상적으로 배치된 식사가 "오늘 새벽
+     * 컷오프"에 걸려 엉뚱하게 clamp된다 — mainMeal1/mainMeal2가 둘 다 컷오프 시각으로 붕괴하는
+     * 원인이었다.
      */
     public static LocalTime clampMeal(LocalTime candidate, MealBlock mb, boolean applyCutoff) {
-        LocalDateTime anchored = anchorMealTime(candidate, mb.mainSleepStart());
+        LocalDateTime anchored = LocalDateTime.of(mb.mainSleepStart().toLocalDate(), candidate);
         anchored = avoidInterval(anchored, mb.mainSleepStart(), mb.mainSleepEnd());
         if (mb.supplementarySleepStart() != null && mb.supplementarySleepEnd() != null) {
             anchored = avoidInterval(anchored, mb.supplementarySleepStart(), mb.supplementarySleepEnd());
         }
-        if (applyCutoff && anchored.isAfter(mb.bigMealCutoff())) {
-            anchored = mb.bigMealCutoff();
+        if (applyCutoff) {
+            LocalDateTime cutoff = anchored.isAfter(mb.mainSleepStart())
+                    ? mb.bigMealCutoff().plusDays(1)
+                    : mb.bigMealCutoff();
+            if (anchored.isAfter(cutoff)) {
+                anchored = cutoff;
+            }
         }
         return anchored.toLocalTime();
     }
 
-    /** 날짜 없는 시각을 reference(보통 mainSleepStart)와 가장 가까운 캘린더 날짜에 붙인다. */
-    private static LocalDateTime anchorMealTime(LocalTime time, LocalDateTime reference) {
-        LocalDateTime same = LocalDateTime.of(reference.toLocalDate(), time);
-        LocalDateTime best = same;
-        long bestDist = Math.abs(Duration.between(reference, same).toMinutes());
-        for (int dayOffset : new int[] {-1, 1}) {
-            LocalDateTime candidate = same.plusDays(dayOffset);
-            long dist = Math.abs(Duration.between(reference, candidate).toMinutes());
-            if (dist < bestDist) {
-                best = candidate;
-                bestDist = dist;
-            }
-        }
-        return best;
+    /**
+     * clamp 이후 두 끼가 같은 시각이거나 30분 이내로 붙었으면 true — 컷오프/수면회피가 충돌해서
+     * 사실상 한 끼로 뭉개진 것일 수 있으므로 호출부가 경고 로그를 남기는 데 쓴다.
+     */
+    public static boolean mealsCollapsed(LocalTime mainMeal1, LocalTime mainMeal2) {
+        return Math.abs(Duration.between(mainMeal1, mainMeal2).toMinutes()) <= 30;
     }
 
     /** [start, end) 구간 안이면 더 가까운 경계 밖으로 민다. */
