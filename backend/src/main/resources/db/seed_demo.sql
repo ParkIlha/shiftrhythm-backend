@@ -48,6 +48,9 @@ INSERT INTO shift (user_profile_id, date, shift_type) VALUES
 
 -- ── 확정된 루틴 (D-6 ~ 오늘) ──────────────────────────────────────
 -- NIGHT 은 주수면(4.5h) + 보조수면(2.5h) 분할. DAY/OFF 는 단일 블록.
+-- sleep_start/sleep_end 등이 V4 마이그레이션으로 DATETIME이 됐으므로, 각 행의 date를 기준으로
+-- TIMESTAMP(date, time)으로 결합한다. end가 start보다 이르면(자정을 넘긴 것) date+1을 붙인다
+-- (V4의 백필 규칙과 동일).
 INSERT INTO routine_result
   (user_profile_id, date, version, is_current, replan_reason, mode,
    sleep_start, sleep_end, supplementary_sleep_start, supplementary_sleep_end, nap_minutes,
@@ -55,48 +58,52 @@ INSERT INTO routine_result
 VALUES
   -- D-6  야간 끝난 뒤 회복 휴무
   (@uid, CURDATE() - INTERVAL 6 DAY, 1, TRUE, NULL, 'OFF_RECOVERY',
-   '01:30:00', '10:00:00', NULL, NULL, NULL,
+   TIMESTAMP(CURDATE() - INTERVAL 6 DAY, '01:30:00'), TIMESTAMP(CURDATE() - INTERVAL 6 DAY, '10:00:00'), NULL, NULL, NULL,
    '{"mainMeal":"12:00:00","subMeal":"18:00:00","snackTime":null,"bigMealCutoff":"00:00:00","nightRestrictionStart":"00:00:00","nightRestrictionEnd":"06:00:00"}',
    '야간 근무가 끝난 첫 휴무라 부족한 잠을 조금 더 채우도록 배치했어요.', NULL),
 
   -- D-5  주간
   (@uid, CURDATE() - INTERVAL 5 DAY, 1, TRUE, NULL, 'DAY',
-   '23:00:00', '06:00:00', NULL, NULL, NULL,
+   TIMESTAMP(CURDATE() - INTERVAL 5 DAY, '23:00:00'), TIMESTAMP(CURDATE() - INTERVAL 4 DAY, '06:00:00'), NULL, NULL, NULL,
    '{"mainMeal":"12:00:00","subMeal":"18:00:00","snackTime":null,"bigMealCutoff":"21:30:00","nightRestrictionStart":"00:00:00","nightRestrictionEnd":"06:00:00"}',
    NULL, NULL),
 
   -- D-4  주간
   (@uid, CURDATE() - INTERVAL 4 DAY, 1, TRUE, NULL, 'DAY',
-   '23:00:00', '06:00:00', NULL, NULL, NULL,
+   TIMESTAMP(CURDATE() - INTERVAL 4 DAY, '23:00:00'), TIMESTAMP(CURDATE() - INTERVAL 3 DAY, '06:00:00'), NULL, NULL, NULL,
    '{"mainMeal":"12:00:00","subMeal":"18:00:00","snackTime":null,"bigMealCutoff":"21:30:00","nightRestrictionStart":"00:00:00","nightRestrictionEnd":"06:00:00"}',
    NULL, NULL),
 
   -- D-3  주간에서 야간으로 넘어가는 휴무 — 취침을 뒤로 밀기 시작
   (@uid, CURDATE() - INTERVAL 3 DAY, 1, TRUE, NULL, 'OFF_RHYTHM_SHIFT',
-   '02:00:00', '09:30:00', NULL, NULL, NULL,
+   TIMESTAMP(CURDATE() - INTERVAL 3 DAY, '02:00:00'), TIMESTAMP(CURDATE() - INTERVAL 3 DAY, '09:30:00'), NULL, NULL, NULL,
    '{"mainMeal":"12:00:00","subMeal":"18:30:00","snackTime":null,"bigMealCutoff":"00:30:00","nightRestrictionStart":"00:00:00","nightRestrictionEnd":"06:00:00"}',
    '내일부터 야간이라 취침을 조금 늦춰 리듬을 미리 옮겼어요.', NULL),
 
   -- D-2  야간 1일차
   (@uid, CURDATE() - INTERVAL 2 DAY, 1, TRUE, NULL, 'NIGHT',
-   '07:30:00', '12:00:00', '18:30:00', '21:00:00', NULL,
+   TIMESTAMP(CURDATE() - INTERVAL 2 DAY, '07:30:00'), TIMESTAMP(CURDATE() - INTERVAL 2 DAY, '12:00:00'),
+   TIMESTAMP(CURDATE() - INTERVAL 2 DAY, '18:30:00'), TIMESTAMP(CURDATE() - INTERVAL 2 DAY, '21:00:00'), NULL,
    '{"mainMeal":"13:00:00","subMeal":"17:00:00","snackTime":"22:30:00","bigMealCutoff":"06:00:00","nightRestrictionStart":"00:00:00","nightRestrictionEnd":"06:00:00"}',
    NULL, NULL),
 
   -- D-1  야간 2일차 · v1(원래 계획) → 퇴근이 밀려 v2 로 재설계됨
   (@uid, CURDATE() - INTERVAL 1 DAY, 1, FALSE, NULL, 'NIGHT',
-   '07:30:00', '12:00:00', '18:30:00', '21:00:00', NULL,
+   TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '07:30:00'), TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '12:00:00'),
+   TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '18:30:00'), TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '21:00:00'), NULL,
    '{"mainMeal":"13:00:00","subMeal":"17:00:00","snackTime":"22:30:00","bigMealCutoff":"06:00:00","nightRestrictionStart":"00:00:00","nightRestrictionEnd":"06:00:00"}',
    NULL, NULL),
   (@uid, CURDATE() - INTERVAL 1 DAY, 2, TRUE, 'LATE_CLOCKOUT', 'NIGHT',
-   '09:30:00', '13:30:00', '18:30:00', '21:00:00', 30,
+   TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '09:30:00'), TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '13:30:00'),
+   TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '18:30:00'), TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '21:00:00'), 30,
    '{"mainMeal":"14:00:00","subMeal":"17:30:00","snackTime":"22:30:00","bigMealCutoff":"08:00:00","nightRestrictionStart":"00:00:00","nightRestrictionEnd":"06:00:00"}',
    '퇴근이 2시간 늦어져 주수면을 그만큼 미뤘어요. 줄어든 만큼은 근무 중 짧은 낮잠으로 채웁니다.',
    NOW() - INTERVAL 1 DAY),
 
   -- D0  오늘 · 야간 3일차 — 재설계 데모는 여기서 일어난다
   (@uid, CURDATE(), 1, TRUE, NULL, 'NIGHT',
-   '07:30:00', '12:00:00', '18:30:00', '21:00:00', NULL,
+   TIMESTAMP(CURDATE(), '07:30:00'), TIMESTAMP(CURDATE(), '12:00:00'),
+   TIMESTAMP(CURDATE(), '18:30:00'), TIMESTAMP(CURDATE(), '21:00:00'), NULL,
    '{"mainMeal":"13:00:00","subMeal":"17:00:00","snackTime":"22:30:00","bigMealCutoff":"06:00:00","nightRestrictionStart":"00:00:00","nightRestrictionEnd":"06:00:00"}',
    '야간 3일차라 잠들기까지 걸리는 시간이 길어지고 있어요. 주수면을 조금 앞당겼습니다.',
    NOW() - INTERVAL 2 HOUR);
