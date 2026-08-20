@@ -225,5 +225,7 @@ EC2에 배포한다. 레포에 별도의 프로덕션 전용 설정(예: `docker
   8080을 외부에 공개한다. 이 프로세스가 재시작되면 URL이 바뀐다. CD와는 무관하게 별도로 관리해야 한다.
 - **데모 데이터**: `backend/src/main/resources/db/seed_demo.sql`은 Flyway 마이그레이션이 아니라 수동 시드라
   CD가 자동으로 돌리지 않는다. 시연 전엔 EC2에서 직접
-  `docker compose exec -T db mysql -u root -proot shiftrhythm < backend/src/main/resources/db/seed_demo.sql`로
+  `docker compose exec -T db mysql --default-character-set=utf8mb4 -u root -proot shiftrhythm < backend/src/main/resources/db/seed_demo.sql`로
   다시 넣어줘야 한다(날짜가 `CURDATE()` 기준 상대값이라 실행 시점 기준 "오늘"로 리셋된다).
+  `--default-character-set=utf8mb4`를 빠뜨리면 mysql 클라이언트가 접속 charset을 기본값(환경에 따라
+  latin1 등)으로 잡아서 한글 리터럴(`ai_reason` 등)이 깨져 저장된다.
