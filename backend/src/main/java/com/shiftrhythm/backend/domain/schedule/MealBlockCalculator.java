@@ -26,6 +26,7 @@ public final class MealBlockCalculator {
     private static final LocalTime NIGHT_RESTRICTION_START = LocalTime.MIDNIGHT;
     private static final LocalTime NIGHT_RESTRICTION_END = LocalTime.of(6, 0);
 
+    /** sleepStart는 시각(time-of-day)만 쓴다 — 식사 제약(MealBlock)은 날짜 없이 하루 반복 벽시계 기준이다. */
     public static MealBlock calculate(LocalTime sleepStart) {
         return new MealBlock(
                 sleepStart.minusMinutes(BIG_MEAL_CUTOFF_BEFORE_SLEEP_MINUTES),

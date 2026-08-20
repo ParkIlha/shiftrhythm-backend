@@ -85,7 +85,7 @@ public class RoutineFacade {
     }
 
     private boolean isOvernightCycle(RoutineResult r) {
-        return r.getMode() == RoutineMode.NIGHT || r.getSleepEnd().isBefore(r.getSleepStart());
+        return r.getMode() == RoutineMode.NIGHT || r.getSleepEnd().toLocalDate().isAfter(r.getDate());
     }
 
     @Transactional
@@ -117,7 +117,7 @@ public class RoutineFacade {
         var mealConstraints = new TodayRoutineView.MealConstraintsView(
                 mt.bigMealCutoff(), mt.nightRestrictionStart(), mt.nightRestrictionEnd(), mt.caffeineCutoff());
 
-        var jetlag = jetlagService.todayView(date, current.getSleepEnd(), profile.getName());
+        var jetlag = jetlagService.todayView(date, current.getSleepEnd().toLocalTime(), profile.getName());
         var sleepDeficit = new TodayRoutineView.SleepDeficitView(
                 computation.recentSleepDeficitMinutes(), sleepDeficitMessage(computation.recentSleepDeficitMinutes()));
 
@@ -159,22 +159,27 @@ public class RoutineFacade {
     private List<TimelineSegment> daySegments(RoutineResult r, ShiftWindow shift, LocalDate date) {
         List<TimelineSegment> segments = new ArrayList<>();
         if (shift.type() != ShiftType.OFF && shift.startTime() != null) {
-            LocalTime shiftEnd = r.getAdjustedShiftEndTime() != null ? r.getAdjustedShiftEndTime() : shift.endTime();
-            segments.add(new TimelineSegment("근무", date, shift.startTime(), shiftEnd));
+            LocalDateTime shiftEnd = r.getAdjustedShiftEndTime() != null ? r.getAdjustedShiftEndTime() : shift.endTime();
+            segments.add(new TimelineSegment("근무", shift.startTime(), shiftEnd));
         }
-        segments.add(new TimelineSegment("주수면", date, r.getSleepStart(), r.getSleepEnd()));
+        segments.add(new TimelineSegment("주수면", r.getSleepStart(), r.getSleepEnd()));
         if (r.getSupplementarySleepStart() != null) {
-            segments.add(new TimelineSegment("보조수면", date, r.getSupplementarySleepStart(), r.getSupplementarySleepEnd()));
+            segments.add(new TimelineSegment("보조수면", r.getSupplementarySleepStart(), r.getSupplementarySleepEnd()));
         }
+        // 식사는 여전히 날짜 없는 벽시계 시각(MealTimes)으로만 저장되므로, 이 RoutineResult가 속한
+        // 등록 날짜(date)를 그대로 붙인다 — 근무/수면과 달리 자정을 넘겨 다음날로 미뤄지는 경우가 없다.
         MealTimes mt = r.getMealTimes();
         if (mt.mainMeal() != null) {
-            segments.add(new TimelineSegment("주요식사", date, mt.mainMeal(), mt.mainMeal().plusMinutes(30)));
+            LocalDateTime start = LocalDateTime.of(date, mt.mainMeal());
+            segments.add(new TimelineSegment("주요식사", start, start.plusMinutes(30)));
         }
         if (mt.subMeal() != null) {
-            segments.add(new TimelineSegment("서브식사", date, mt.subMeal(), mt.subMeal().plusMinutes(20)));
+            LocalDateTime start = LocalDateTime.of(date, mt.subMeal());
+            segments.add(new TimelineSegment("서브식사", start, start.plusMinutes(20)));
         }
         if (mt.snackTime() != null) {
-            segments.add(new TimelineSegment("간식", date, mt.snackTime(), mt.snackTime().plusMinutes(10)));
+            LocalDateTime start = LocalDateTime.of(date, mt.snackTime());
+            segments.add(new TimelineSegment("간식", start, start.plusMinutes(10)));
         }
         return segments;
     }
@@ -184,15 +189,15 @@ public class RoutineFacade {
         SleepBlock sb = computation.sleepBlock();
         SleepWindow window = computation.sleepWindow();
         SuggestAdjustmentRequest.SleepWindow windowDto = new SuggestAdjustmentRequest.SleepWindow(
-                window.earliestSleepStart().format(TIME_FORMAT), window.latestSleepEnd().format(TIME_FORMAT));
+                window.earliestSleepStart().toLocalTime().format(TIME_FORMAT), window.latestSleepEnd().toLocalTime().format(TIME_FORMAT));
         SuggestAdjustmentRequest.CurrentSleepBlock currentBlockDto = new SuggestAdjustmentRequest.CurrentSleepBlock(
-                sb.mainSleepStart().format(TIME_FORMAT),
-                sb.mainSleepEnd().format(TIME_FORMAT),
-                sb.supplementarySleepStart() == null ? null : sb.supplementarySleepStart().format(TIME_FORMAT),
-                sb.supplementarySleepEnd() == null ? null : sb.supplementarySleepEnd().format(TIME_FORMAT),
+                sb.mainSleepStart().toLocalTime().format(TIME_FORMAT),
+                sb.mainSleepEnd().toLocalTime().format(TIME_FORMAT),
+                sb.supplementarySleepStart() == null ? null : sb.supplementarySleepStart().toLocalTime().format(TIME_FORMAT),
+                sb.supplementarySleepEnd() == null ? null : sb.supplementarySleepEnd().toLocalTime().format(TIME_FORMAT),
                 sb.napMinutes(),
-                sb.ankerBlockStart() == null ? null : sb.ankerBlockStart().format(TIME_FORMAT),
-                sb.ankerBlockEnd() == null ? null : sb.ankerBlockEnd().format(TIME_FORMAT)
+                sb.ankerBlockStart() == null ? null : sb.ankerBlockStart().toLocalTime().format(TIME_FORMAT),
+                sb.ankerBlockEnd() == null ? null : sb.ankerBlockEnd().toLocalTime().format(TIME_FORMAT)
         );
         SuggestAdjustmentRequest.MealConstraints mealConstraintsDto = new SuggestAdjustmentRequest.MealConstraints(
                 computation.mealBlock().bigMealCutoff().format(TIME_FORMAT),
@@ -251,11 +256,14 @@ public class RoutineFacade {
         LocalTime snackTime;
         MealBlock mb = computation.mealBlock();
         try {
+            SleepWindow window = computation.sleepWindow();
             SleepBlock proposedSleep = new SleepBlock(
-                    LocalTime.parse(response.sleep().mainSleepStart()),
-                    LocalTime.parse(response.sleep().mainSleepEnd()),
-                    response.sleep().supplementarySleepStart() == null ? null : LocalTime.parse(response.sleep().supplementarySleepStart()),
-                    response.sleep().supplementarySleepEnd() == null ? null : LocalTime.parse(response.sleep().supplementarySleepEnd()),
+                    SleepTimeMath.anchorWithinWindow(LocalTime.parse(response.sleep().mainSleepStart()), window.earliestSleepStart(), window.latestSleepEnd()),
+                    SleepTimeMath.anchorWithinWindow(LocalTime.parse(response.sleep().mainSleepEnd()), window.earliestSleepStart(), window.latestSleepEnd()),
+                    response.sleep().supplementarySleepStart() == null ? null
+                            : SleepTimeMath.anchorWithinWindow(LocalTime.parse(response.sleep().supplementarySleepStart()), window.earliestSleepStart(), window.latestSleepEnd()),
+                    response.sleep().supplementarySleepEnd() == null ? null
+                            : SleepTimeMath.anchorWithinWindow(LocalTime.parse(response.sleep().supplementarySleepEnd()), window.earliestSleepStart(), window.latestSleepEnd()),
                     response.sleep().napMinutes(),
                     computation.sleepBlock().adjustToleranceMinutes(),
                     computation.sleepBlock().ankerBlockStart(),
@@ -282,9 +290,9 @@ public class RoutineFacade {
 
         if (snackTime != null) {
             long toSnack = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), snackTime);
-            long toSleepStart = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), clampedSleep.mainSleepStart());
+            long toSleepStart = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), clampedSleep.mainSleepStart().toLocalTime());
             if (toSnack > toSleepStart) {
-                snackTime = clampedSleep.mainSleepStart().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
+                snackTime = clampedSleep.mainSleepStart().toLocalTime().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
             }
         }
 

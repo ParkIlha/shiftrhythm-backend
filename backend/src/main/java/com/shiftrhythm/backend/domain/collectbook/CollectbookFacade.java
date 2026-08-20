@@ -46,13 +46,13 @@ public class CollectbookFacade {
 
         Map<Integer, List<RoutineResult>> byOffset = new LinkedHashMap<>();
         for (RoutineResult r : rows) {
-            int offset = JetlagMapper.offsetOf(r.getSleepEnd());
+            int offset = JetlagMapper.offsetOf(r.getSleepEnd().toLocalTime());
             byOffset.computeIfAbsent(offset, k -> new ArrayList<>()).add(r);
         }
 
         Set<Integer> historicalOffsets = routineResultRepository
                 .findByUserProfileIdAndDateBeforeAndIsCurrentTrueOrderByDateAsc(userId, from).stream()
-                .map(r -> JetlagMapper.offsetOf(r.getSleepEnd()))
+                .map(r -> JetlagMapper.offsetOf(r.getSleepEnd().toLocalTime()))
                 .collect(Collectors.toSet());
 
         List<ZoneAggregate> aggregates = byOffset.entrySet().stream()
@@ -81,8 +81,8 @@ public class CollectbookFacade {
 
     private ZoneAggregate aggregate(int offset, List<RoutineResult> rowsInZone, Set<Integer> historicalOffsets) {
         LocalDate lastLivedDate = rowsInZone.stream().map(RoutineResult::getDate).max(LocalDate::compareTo).orElseThrow();
-        LocalTime repStart = mostFrequent(rowsInZone.stream().map(r -> roundToNearest(r.getSleepStart(), ROUND_MINUTES)).toList());
-        LocalTime repEnd = mostFrequent(rowsInZone.stream().map(r -> roundToNearest(r.getSleepEnd(), ROUND_MINUTES)).toList());
+        LocalTime repStart = mostFrequent(rowsInZone.stream().map(r -> roundToNearest(r.getSleepStart().toLocalTime(), ROUND_MINUTES)).toList());
+        LocalTime repEnd = mostFrequent(rowsInZone.stream().map(r -> roundToNearest(r.getSleepEnd().toLocalTime(), ROUND_MINUTES)).toList());
         boolean isNew = !historicalOffsets.contains(offset);
         return new ZoneAggregate(offset, rowsInZone.size(), lastLivedDate, repStart, repEnd, isNew);
     }
@@ -93,7 +93,7 @@ public class CollectbookFacade {
                 .findByUserProfileIdAndDateBetweenAndIsCurrentTrueOrderByDateAsc(userId, lookbackStart, to);
         Map<LocalDate, Integer> offsetByDate = new LinkedHashMap<>();
         for (RoutineResult r : rows) {
-            offsetByDate.put(r.getDate(), JetlagMapper.offsetOf(r.getSleepEnd()));
+            offsetByDate.put(r.getDate(), JetlagMapper.offsetOf(r.getSleepEnd().toLocalTime()));
         }
         return DailyTravelCalculator.calculate(from, to, offsetByDate);
     }

@@ -1,14 +1,16 @@
 package com.shiftrhythm.backend.domain.schedule;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 /**
  * AI가 절대시각으로 돌려준 수면/식사 제안을 하드 제약(sleepWindow, anchor, mealConstraints)
  * 기준으로 검증하고 벗어난 값을 clamp한다.
  *
- * 시각 비교는 전부 SleepWindow.earliestSleepStart(또는 nightRestrictionStart)를 0분으로 하는
- * 선형 분(minute) 오프셋 공간으로 변환해서 처리한다 — LocalTime은 자정을 넘나들 수 있어 순환
- * 비교가 부정확해지기 쉽기 때문.
+ * 수면 쪽은 SleepWindow/SleepBlock이 날짜를 포함한 LocalDateTime이라 순서 비교(isBefore/isAfter)만으로
+ * 충분하다. 식사 쪽(clampMainMeal/isWithin)은 날짜 없는 하루 반복 벽시계 기준이라 여전히
+ * SleepTimeMath의 순환(LocalTime) 비교를 쓴다.
  */
 public final class AiSleepMealValidator {
 
@@ -22,48 +24,40 @@ public final class AiSleepMealValidator {
      * 의도가 지켜지지 않기 때문이다. 단, 앵커구간은 하드 제약이라 tolerance보다 우선해 포함시킨다.
      */
     public static SleepBlock clampSleep(SleepBlock proposed, SleepBlock ruleBased, SleepWindow window) {
-        LocalTime earliest = window.earliestSleepStart();
-        long span = SleepTimeMath.minutesBetween(earliest, window.latestSleepEnd());
+        LocalDateTime earliest = window.earliestSleepStart();
+        LocalDateTime latest = window.latestSleepEnd();
         int tolerance = proposed.adjustToleranceMinutes();
 
-        long ruleStartOff = SleepTimeMath.minutesBetween(earliest, ruleBased.mainSleepStart());
-        long ruleEndOff = SleepTimeMath.minutesBetween(earliest, ruleBased.mainSleepEnd());
-
-        long startOff = clampToToleranceWindow(
-                clampOffset(SleepTimeMath.minutesBetween(earliest, proposed.mainSleepStart()), span), span, ruleStartOff, tolerance);
-        long endOff = clampToToleranceWindow(
-                clampOffset(SleepTimeMath.minutesBetween(earliest, proposed.mainSleepEnd()), span), span, ruleEndOff, tolerance);
-        if (endOff < startOff) {
-            endOff = startOff;
+        LocalDateTime start = clampToToleranceWindow(
+                clamp(proposed.mainSleepStart(), earliest, latest), ruleBased.mainSleepStart(), tolerance, earliest, latest);
+        LocalDateTime end = clampToToleranceWindow(
+                clamp(proposed.mainSleepEnd(), earliest, latest), ruleBased.mainSleepEnd(), tolerance, earliest, latest);
+        if (end.isBefore(start)) {
+            end = start;
         }
 
-        LocalTime ankerStart = proposed.ankerBlockStart();
-        LocalTime ankerEnd = proposed.ankerBlockEnd();
+        LocalDateTime ankerStart = proposed.ankerBlockStart();
+        LocalDateTime ankerEnd = proposed.ankerBlockEnd();
         if (ankerStart != null && ankerEnd != null) {
-            long ankerStartOff = clampOffset(SleepTimeMath.minutesBetween(earliest, ankerStart), span);
-            long ankerEndOff = clampOffset(SleepTimeMath.minutesBetween(earliest, ankerEnd), span);
             // 앵커구간이 수면 밖으로 벗어나면 수면을 앵커를 포함하도록 확장(단, window 밖으로는 못 나감)
-            if (ankerStartOff < startOff) {
-                startOff = ankerStartOff;
+            LocalDateTime clampedAnkerStart = clamp(ankerStart, earliest, latest);
+            LocalDateTime clampedAnkerEnd = clamp(ankerEnd, earliest, latest);
+            if (clampedAnkerStart.isBefore(start)) {
+                start = clampedAnkerStart;
             }
-            if (ankerEndOff > endOff) {
-                endOff = ankerEndOff;
+            if (clampedAnkerEnd.isAfter(end)) {
+                end = clampedAnkerEnd;
             }
         }
 
-        LocalTime start = earliest.plusMinutes(startOff);
-        LocalTime end = earliest.plusMinutes(endOff);
-
-        LocalTime suppStart = proposed.supplementarySleepStart();
-        LocalTime suppEnd = proposed.supplementarySleepEnd();
+        LocalDateTime suppStart = proposed.supplementarySleepStart();
+        LocalDateTime suppEnd = proposed.supplementarySleepEnd();
         if (suppStart != null && suppEnd != null) {
-            long suppStartOff = clampOffset(SleepTimeMath.minutesBetween(earliest, suppStart), span);
-            long suppEndOff = clampOffset(SleepTimeMath.minutesBetween(earliest, suppEnd), span);
-            if (suppEndOff < suppStartOff) {
-                suppEndOff = suppStartOff;
+            suppStart = clamp(suppStart, earliest, latest);
+            suppEnd = clamp(suppEnd, earliest, latest);
+            if (suppEnd.isBefore(suppStart)) {
+                suppEnd = suppStart;
             }
-            suppStart = earliest.plusMinutes(suppStartOff);
-            suppEnd = earliest.plusMinutes(suppEndOff);
         }
 
         return new SleepBlock(start, end, suppStart, suppEnd, proposed.napMinutes(),
@@ -72,8 +66,8 @@ public final class AiSleepMealValidator {
 
     /** 주수면 길이가 규칙 기반 초안보다 너무 짧아진 경우(80% 미만) true — 로그 경고용. */
     public static boolean isMainSleepSuspiciouslyShort(SleepBlock proposed, SleepBlock ruleBased) {
-        long proposedMinutes = SleepTimeMath.minutesBetween(proposed.mainSleepStart(), proposed.mainSleepEnd());
-        long baselineMinutes = SleepTimeMath.minutesBetween(ruleBased.mainSleepStart(), ruleBased.mainSleepEnd());
+        long proposedMinutes = Duration.between(proposed.mainSleepStart(), proposed.mainSleepEnd()).toMinutes();
+        long baselineMinutes = Duration.between(ruleBased.mainSleepStart(), ruleBased.mainSleepEnd()).toMinutes();
         return baselineMinutes > 0 && proposedMinutes < baselineMinutes * 0.8;
     }
 
@@ -94,18 +88,28 @@ public final class AiSleepMealValidator {
         return offset < span;
     }
 
-    private static long clampToToleranceWindow(long offset, long span, long ruleOffset, int tolerance) {
-        long low = Math.max(0, ruleOffset - tolerance);
-        long high = Math.min(span, ruleOffset + tolerance);
-        return Math.min(Math.max(offset, low), high);
+    private static LocalDateTime clamp(LocalDateTime v, LocalDateTime lo, LocalDateTime hi) {
+        if (v.isBefore(lo)) {
+            return lo;
+        }
+        if (v.isAfter(hi)) {
+            return hi;
+        }
+        return v;
     }
 
-    private static long clampOffset(long offset, long span) {
-        if (offset <= span) {
-            return offset;
-        }
-        long overrunPastLatest = offset - span;
-        long distanceBeforeEarliest = 24 * 60 - offset;
-        return overrunPastLatest <= distanceBeforeEarliest ? span : 0;
+    private static LocalDateTime clampToToleranceWindow(LocalDateTime v, LocalDateTime ruleValue, int tolerance,
+                                                          LocalDateTime lo, LocalDateTime hi) {
+        LocalDateTime low = maxDt(lo, ruleValue.minusMinutes(tolerance));
+        LocalDateTime high = minDt(hi, ruleValue.plusMinutes(tolerance));
+        return clamp(v, low, high);
+    }
+
+    private static LocalDateTime maxDt(LocalDateTime a, LocalDateTime b) {
+        return a.isAfter(b) ? a : b;
+    }
+
+    private static LocalDateTime minDt(LocalDateTime a, LocalDateTime b) {
+        return a.isBefore(b) ? a : b;
     }
 }

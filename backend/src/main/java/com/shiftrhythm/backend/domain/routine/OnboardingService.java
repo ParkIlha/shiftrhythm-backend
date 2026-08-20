@@ -11,6 +11,7 @@ import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
 import com.shiftrhythm.backend.domain.schedule.SleepBlock;
+import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
 import com.shiftrhythm.backend.domain.schedule.SleepWindow;
 import com.shiftrhythm.backend.domain.schedule.entity.Shift;
 import com.shiftrhythm.backend.domain.schedule.entity.ShiftTypeDefault;
@@ -275,15 +276,15 @@ public class OnboardingService {
         SleepBlock sb = computation.sleepBlock();
         SleepWindow window = computation.sleepWindow();
         SuggestAdjustmentRequest.SleepWindow windowDto = new SuggestAdjustmentRequest.SleepWindow(
-                window.earliestSleepStart().format(TIME_FORMAT), window.latestSleepEnd().format(TIME_FORMAT));
+                window.earliestSleepStart().toLocalTime().format(TIME_FORMAT), window.latestSleepEnd().toLocalTime().format(TIME_FORMAT));
         SuggestAdjustmentRequest.CurrentSleepBlock currentBlockDto = new SuggestAdjustmentRequest.CurrentSleepBlock(
-                sb.mainSleepStart().format(TIME_FORMAT),
-                sb.mainSleepEnd().format(TIME_FORMAT),
-                sb.supplementarySleepStart() == null ? null : sb.supplementarySleepStart().format(TIME_FORMAT),
-                sb.supplementarySleepEnd() == null ? null : sb.supplementarySleepEnd().format(TIME_FORMAT),
+                sb.mainSleepStart().toLocalTime().format(TIME_FORMAT),
+                sb.mainSleepEnd().toLocalTime().format(TIME_FORMAT),
+                sb.supplementarySleepStart() == null ? null : sb.supplementarySleepStart().toLocalTime().format(TIME_FORMAT),
+                sb.supplementarySleepEnd() == null ? null : sb.supplementarySleepEnd().toLocalTime().format(TIME_FORMAT),
                 sb.napMinutes(),
-                sb.ankerBlockStart() == null ? null : sb.ankerBlockStart().format(TIME_FORMAT),
-                sb.ankerBlockEnd() == null ? null : sb.ankerBlockEnd().format(TIME_FORMAT)
+                sb.ankerBlockStart() == null ? null : sb.ankerBlockStart().toLocalTime().format(TIME_FORMAT),
+                sb.ankerBlockEnd() == null ? null : sb.ankerBlockEnd().toLocalTime().format(TIME_FORMAT)
         );
         SuggestAdjustmentRequest.MealConstraints mealConstraintsDto = new SuggestAdjustmentRequest.MealConstraints(
                 computation.mealBlock().bigMealCutoff().format(TIME_FORMAT),
@@ -309,11 +310,14 @@ public class OnboardingService {
             return;
         }
 
+        SleepWindow window = computation.sleepWindow();
         SleepBlock proposedSleep = new SleepBlock(
-                LocalTime.parse(response.sleep().mainSleepStart()),
-                LocalTime.parse(response.sleep().mainSleepEnd()),
-                response.sleep().supplementarySleepStart() == null ? null : LocalTime.parse(response.sleep().supplementarySleepStart()),
-                response.sleep().supplementarySleepEnd() == null ? null : LocalTime.parse(response.sleep().supplementarySleepEnd()),
+                SleepTimeMath.anchorWithinWindow(LocalTime.parse(response.sleep().mainSleepStart()), window.earliestSleepStart(), window.latestSleepEnd()),
+                SleepTimeMath.anchorWithinWindow(LocalTime.parse(response.sleep().mainSleepEnd()), window.earliestSleepStart(), window.latestSleepEnd()),
+                response.sleep().supplementarySleepStart() == null ? null
+                        : SleepTimeMath.anchorWithinWindow(LocalTime.parse(response.sleep().supplementarySleepStart()), window.earliestSleepStart(), window.latestSleepEnd()),
+                response.sleep().supplementarySleepEnd() == null ? null
+                        : SleepTimeMath.anchorWithinWindow(LocalTime.parse(response.sleep().supplementarySleepEnd()), window.earliestSleepStart(), window.latestSleepEnd()),
                 response.sleep().napMinutes(),
                 computation.sleepBlock().adjustToleranceMinutes(),
                 computation.sleepBlock().ankerBlockStart(),
@@ -333,10 +337,10 @@ public class OnboardingService {
                 : null;
         // 간식이 주수면 시작 이후로 밀리면 의미가 없으므로 주수면 시작 전으로 clamp
         if (snackTime != null) {
-            long toSnack = com.shiftrhythm.backend.domain.schedule.SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), snackTime);
-            long toSleepStart = com.shiftrhythm.backend.domain.schedule.SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), clampedSleep.mainSleepStart());
+            long toSnack = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), snackTime);
+            long toSleepStart = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), clampedSleep.mainSleepStart().toLocalTime());
             if (toSnack > toSleepStart) {
-                snackTime = clampedSleep.mainSleepStart().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
+                snackTime = clampedSleep.mainSleepStart().toLocalTime().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
             }
         }
 

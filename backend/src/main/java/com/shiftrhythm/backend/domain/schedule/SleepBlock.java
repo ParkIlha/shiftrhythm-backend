@@ -1,16 +1,16 @@
 package com.shiftrhythm.backend.domain.schedule;
 
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 
 public record SleepBlock(
-        LocalTime mainSleepStart,
-        LocalTime mainSleepEnd,
-        LocalTime supplementarySleepStart,
-        LocalTime supplementarySleepEnd,
+        LocalDateTime mainSleepStart,
+        LocalDateTime mainSleepEnd,
+        LocalDateTime supplementarySleepStart,
+        LocalDateTime supplementarySleepEnd,
         Integer napMinutes,
         int adjustToleranceMinutes,
-        LocalTime ankerBlockStart,
-        LocalTime ankerBlockEnd
+        LocalDateTime ankerBlockStart,
+        LocalDateTime ankerBlockEnd
 ) {
     public SleepBlock withAnchor(Anchor anchor) {
         if (anchor == null) {

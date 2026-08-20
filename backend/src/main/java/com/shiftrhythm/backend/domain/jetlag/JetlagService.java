@@ -44,7 +44,7 @@ public class JetlagService {
         return routineResultRepository.findByUserProfileIdAndDateAndIsCurrentTrue(userId, yesterday)
                 .map(r -> {
                     Map<LocalDate, Integer> offsetByDate = Map.of(
-                            yesterday, JetlagMapper.offsetOf(r.getSleepEnd()),
+                            yesterday, JetlagMapper.offsetOf(r.getSleepEnd().toLocalTime()),
                             date, todayOffset);
                     return DailyTravelCalculator.calculate(date, date, offsetByDate).totalHours();
                 })

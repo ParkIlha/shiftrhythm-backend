@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
 
@@ -37,18 +38,30 @@ class ReportFacadeTest {
                 LocalTime.of(21, 0), LocalTime.of(0, 0), LocalTime.of(6, 0), LocalTime.of(18, 0));
     }
 
+    /** date의 start~end 구간을 LocalDateTime으로 만든다. end가 start보다 이르면 자정을 넘긴 것으로 본다. */
+    private static LocalDateTime start(LocalDate date, LocalTime start) {
+        return LocalDateTime.of(date, start);
+    }
+
+    private static LocalDateTime end(LocalDate date, LocalTime start, LocalTime end) {
+        return end.isBefore(start) ? LocalDateTime.of(date.plusDays(1), end) : LocalDateTime.of(date, end);
+    }
+
+    private static RoutineResult routine(LocalDate date, int version, boolean current, ReplanReason reason,
+                                          LocalTime sleepStart, LocalTime sleepEnd) {
+        return new RoutineResult(UserProfile.SINGLETON_ID, date, version, current, reason, RoutineMode.DAY,
+                start(date, sleepStart), end(date, sleepStart, sleepEnd), null, null, null, mealTimes());
+    }
+
     @Test
     void weekly_aggregatesSleepAndReplanSummary() {
         // D0: 7시간 수면, 재계획 없음
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, D0, 1, true, null, RoutineMode.DAY,
-                LocalTime.of(23, 0), LocalTime.of(6, 0), null, null, null, mealTimes()));
+        routineResultRepository.save(routine(D0, 1, true, null, LocalTime.of(23, 0), LocalTime.of(6, 0)));
 
         // D0+1: 최초(v1) 6시간 -> 재계획(v2, LATE_CLOCKOUT)으로 5시간, v2가 is_current(=지켜짐)
         LocalDate d1 = D0.plusDays(1);
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, d1, 1, false, null, RoutineMode.DAY,
-                LocalTime.of(23, 0), LocalTime.of(5, 0), null, null, null, mealTimes()));
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, d1, 2, true, ReplanReason.LATE_CLOCKOUT, RoutineMode.DAY,
-                LocalTime.of(0, 0), LocalTime.of(5, 0), null, null, null, mealTimes()));
+        routineResultRepository.save(routine(d1, 1, false, null, LocalTime.of(23, 0), LocalTime.of(5, 0)));
+        routineResultRepository.save(routine(d1, 2, true, ReplanReason.LATE_CLOCKOUT, LocalTime.of(0, 0), LocalTime.of(5, 0)));
 
         WeeklyReportView view = reportFacade.weekly(D0, D0.plusDays(6));
 
@@ -68,10 +81,8 @@ class ReportFacadeTest {
         YearMonth thisMonth = YearMonth.from(D0);
         YearMonth prevMonth = thisMonth.minusMonths(1);
 
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, thisMonth.atDay(1), 1, true, null, RoutineMode.DAY,
-                LocalTime.of(23, 0), LocalTime.of(7, 0), null, null, null, mealTimes())); // 8시간
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, prevMonth.atDay(1), 1, true, null, RoutineMode.DAY,
-                LocalTime.of(23, 0), LocalTime.of(5, 0), null, null, null, mealTimes())); // 6시간
+        routineResultRepository.save(routine(thisMonth.atDay(1), 1, true, null, LocalTime.of(23, 0), LocalTime.of(7, 0))); // 8시간
+        routineResultRepository.save(routine(prevMonth.atDay(1), 1, true, null, LocalTime.of(23, 0), LocalTime.of(5, 0))); // 6시간
 
         MonthlyReportView view = reportFacade.monthly(thisMonth);
 
@@ -83,8 +94,7 @@ class ReportFacadeTest {
     @Test
     void monthly_withNoPreviousMonthData_averageIsNull() {
         YearMonth farFuture = YearMonth.from(D0).plusYears(5);
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, farFuture.atDay(1), 1, true, null, RoutineMode.DAY,
-                LocalTime.of(23, 0), LocalTime.of(7, 0), null, null, null, mealTimes()));
+        routineResultRepository.save(routine(farFuture.atDay(1), 1, true, null, LocalTime.of(23, 0), LocalTime.of(7, 0)));
 
         MonthlyReportView view = reportFacade.monthly(farFuture);
 
@@ -93,10 +103,8 @@ class ReportFacadeTest {
 
     @Test
     void daily_comparesPlanVsActualAndIncludesReplanLogAndCheckIn() {
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, D0, 1, false, null, RoutineMode.DAY,
-                LocalTime.of(23, 0), LocalTime.of(6, 0), null, null, null, mealTimes()));
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, D0, 2, true, ReplanReason.SHIFT_CHANGE, RoutineMode.DAY,
-                LocalTime.of(22, 0), LocalTime.of(5, 30), null, null, null, mealTimes()));
+        routineResultRepository.save(routine(D0, 1, false, null, LocalTime.of(23, 0), LocalTime.of(6, 0)));
+        routineResultRepository.save(routine(D0, 2, true, ReplanReason.SHIFT_CHANGE, LocalTime.of(22, 0), LocalTime.of(5, 30)));
 
         DailyCheckIn checkIn = new DailyCheckIn(UserProfile.SINGLETON_ID, D0);
         checkIn.setConditionScore(4);
@@ -122,8 +130,7 @@ class ReportFacadeTest {
 
     @Test
     void daily_withoutCheckIn_checkInViewIsNull() {
-        routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, D0, 1, true, null, RoutineMode.DAY,
-                LocalTime.of(23, 0), LocalTime.of(6, 0), null, null, null, mealTimes()));
+        routineResultRepository.save(routine(D0, 1, true, null, LocalTime.of(23, 0), LocalTime.of(6, 0)));
 
         DailyReportView view = reportFacade.daily(D0);
 

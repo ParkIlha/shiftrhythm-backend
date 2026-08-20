@@ -2,7 +2,6 @@ package com.shiftrhythm.backend.domain.schedule;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -13,9 +12,9 @@ import java.util.Objects;
  *
  * 세그먼트는 자정을 넘나들 수 있다(예: 어제 22:00 시작한 수면이 오늘 06:00에 끝남). 이런 세그먼트를
  * targetDate 경계에서 칼같이 자르지 않고, targetDate 하루와 겹치는 시간이 MIN_OVERLAP_MINUTES 이상이면
- * 통째로 포함한다 — 프론트에서 "이 블록이 사실 어제/내일 것"이라는 걸 알 수 있게 date를 그대로 들고 있게
- * 해서다. 겹침이 이 임계값 미만이면(예: 자정 10분 전에 끝나는 어제 일정) 노이즈로 보고 오늘 타임라인에서
- * 뺀다.
+ * 통째로 포함한다 — 프론트에서 "이 블록이 사실 어제/내일 것"이라는 걸 알 수 있게 실제 날짜를 그대로
+ * 들고 있게 해서다. 겹침이 이 임계값 미만이면(예: 자정 10분 전에 끝나는 어제 일정) 노이즈로 보고 오늘
+ * 타임라인에서 뺀다.
  */
 public final class TimelineBuilder {
 
@@ -30,21 +29,19 @@ public final class TimelineBuilder {
 
         List<TimelineSegment> kept = candidateSegments.stream()
                 .filter(Objects::nonNull)
-                .filter(s -> overlapMinutes(realStart(s), realEnd(s), dayStart, dayEnd) >= MIN_OVERLAP_MINUTES)
-                .sorted(Comparator.comparing(TimelineBuilder::realStart))
+                .filter(s -> overlapMinutes(s.start(), s.end(), dayStart, dayEnd) >= MIN_OVERLAP_MINUTES)
+                .sorted(Comparator.comparing(TimelineSegment::start))
                 .toList();
 
         List<TimelineSegment> result = new ArrayList<>();
         LocalDateTime cursor = dayStart;
         for (TimelineSegment seg : kept) {
-            LocalDateTime segStart = realStart(seg);
-            if (segStart.isAfter(cursor)) {
-                result.add(freeTime(cursor, segStart));
+            if (seg.start().isAfter(cursor)) {
+                result.add(freeTime(cursor, seg.start()));
             }
             result.add(seg);
-            LocalDateTime segEnd = realEnd(seg);
-            if (segEnd.isAfter(cursor)) {
-                cursor = segEnd;
+            if (seg.end().isAfter(cursor)) {
+                cursor = seg.end();
             }
         }
         if (dayEnd.isAfter(cursor)) {
@@ -54,17 +51,7 @@ public final class TimelineBuilder {
     }
 
     private static TimelineSegment freeTime(LocalDateTime from, LocalDateTime to) {
-        return new TimelineSegment("자유시간", from.toLocalDate(), from.toLocalTime(), to.toLocalTime());
-    }
-
-    private static LocalDateTime realStart(TimelineSegment s) {
-        return LocalDateTime.of(s.date(), s.start());
-    }
-
-    private static LocalDateTime realEnd(TimelineSegment s) {
-        LocalDateTime end = LocalDateTime.of(s.date(), s.end());
-        LocalDateTime start = LocalDateTime.of(s.date(), s.start());
-        return end.isAfter(start) ? end : end.plusDays(1);
+        return new TimelineSegment("자유시간", from, to);
     }
 
     private static long overlapMinutes(LocalDateTime aStart, LocalDateTime aEnd, LocalDateTime bStart, LocalDateTime bEnd) {
