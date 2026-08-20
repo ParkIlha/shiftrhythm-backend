@@ -8,6 +8,7 @@ import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.policy.AiSleepMealValidator;
 import com.shiftrhythm.backend.domain.schedule.policy.MealBlockCalculator;
+import com.shiftrhythm.backend.domain.schedule.util.AppClock;
 import com.shiftrhythm.backend.domain.schedule.MealBlock;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
@@ -120,6 +121,16 @@ public class OnboardingService {
         UserProfile profile = userProfileRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("프로필을 먼저 등록해야 합니다"));
 
+        List<ShiftInput> sorted = shifts.stream().sorted(Comparator.comparing(ShiftInput::date)).toList();
+
+        // 오늘이 범위 밖이면 저장 자체를 막는다 — PATCH /{date}는 기존 날짜 수정 전용이라 새 날짜를
+        // 추가할 수 없어서, 이걸 막지 않으면 나중에 /routines/today 등이 ROUTINE_NOT_FOUND로 뒤늦게
+        // 터질 뿐 고칠 방법이 이 API로 통째로 재등록하는 것뿐이다.
+        LocalDate today = AppClock.now().toLocalDate();
+        if (sorted.stream().noneMatch(s -> s.date().equals(today))) {
+            throw new ScheduleMissingTodayException(today);
+        }
+
         shiftTypeDefaultRepository.deleteByUserProfileId(userId);
         shiftTypeDefaultRepository.flush();
         for (ShiftTypeDefaultInput d : defaults) {
@@ -129,8 +140,6 @@ public class OnboardingService {
 
         shiftRepository.deleteByUserProfileId(userId);
         shiftRepository.flush();
-
-        List<ShiftInput> sorted = shifts.stream().sorted(Comparator.comparing(ShiftInput::date)).toList();
 
         for (ShiftInput s : sorted) {
             shiftRepository.save(new Shift(userId, s.date(), s.shiftType(), null, null));
@@ -187,6 +196,36 @@ public class OnboardingService {
                 routineResultRepository.save(r);
             }
         }
+    }
+
+    /**
+     * 이미 등록된 근무표의 상대적 패턴(요일 순서, 근무유형)은 그대로 두고 절대 날짜만 통째로 밀어서
+     * 재등록한다. "오늘이 근무표 범위 밖이라 저장이 막힌" 상황(monthGuessed 여부와 무관하게 항상 사용
+     * 가능)에서, 근무표를 처음부터 다시 입력할 필요 없이 새 시작일 하나만 골라서 고칠 수 있게 한다.
+     *
+     * shiftTypeDefaults(근무유형별 기본 시각)는 기존 등록값을 그대로 재사용한다 — 프론트가 다시 보낼
+     * 필요 없다. 개별 날짜에 지정했던 시각 override는 registerSchedule의 기존 동작과 동일하게
+     * 초기화된다(전체 재등록이라 원래도 override가 안 남는다).
+     */
+    @Transactional
+    public void shiftScheduleStartDate(LocalDate newStartDate) {
+        Long userId = CurrentUser.id();
+        List<Shift> existing = shiftRepository.findByUserProfileIdOrderByDateAsc(userId);
+        if (existing.isEmpty()) {
+            throw new IllegalStateException("먼저 근무표를 등록해야 합니다");
+        }
+
+        LocalDate currentStart = existing.get(0).getDate();
+        long offsetDays = java.time.temporal.ChronoUnit.DAYS.between(currentStart, newStartDate);
+
+        List<ShiftTypeDefaultInput> defaults = shiftTypeDefaultRepository.findByUserProfileId(userId).stream()
+                .map(d -> new ShiftTypeDefaultInput(d.getShiftType(), d.getDefaultStartTime(), d.getDefaultEndTime()))
+                .toList();
+        List<ShiftInput> shiftedShifts = existing.stream()
+                .map(s -> new ShiftInput(s.getDate().plusDays(offsetDays), s.getShiftType()))
+                .toList();
+
+        registerSchedule(defaults, shiftedShifts);
     }
 
     /** 등록된 근무표 전체 조회. 시각 override가 없는 날은 근무유형의 기본 시각을 대신 채워서 내려준다. */
