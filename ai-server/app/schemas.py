@@ -97,8 +97,9 @@ class SleepSuggest(BaseModel):
     reason: str
 
 class MealSuggest(BaseModel):
+    # 두 끼 모두 필수(대등, 위계 없음). 백엔드가 mainMeal1/mainMeal2 로 매핑한다.
     mainMealTime: str
-    subMealTime: str | None = None
+    subMealTime: str
     snackNeeded: bool = False
     snackTime: str | None = None
     reason: str
