@@ -68,24 +68,13 @@ public class RoutineFacade {
     }
 
     /**
-     * "현재시각이 어느 근무 사이클에 속하는지" 계산. 자정 이후~06시 이전이고 어제가 NIGHT 사이클이면
-     * 어제 날짜를 오늘 사이클로 본다(자정을 넘겨 이어지는 야간 근무/수면 대응). 정확한 산식은 별도 명세가
-     * 없어 합리적으로 정한 값이다.
+     * "현재시각이 어느 근무 사이클에 속하는지" 계산. 타임라인이 이제 자정을 넘나드는 세그먼트를
+     * 실제 LocalDateTime 그대로 들고 다니며 전날/오늘 타임라인 양쪽에 통째로 걸쳐 보여주므로
+     * (TimelineBuilder 참고), 날짜 자체를 어제로 되돌리는 보정은 더 이상 필요 없다 — 항상 실제
+     * 캘린더 날짜를 그대로 쓴다.
      */
     public LocalDate resolveCurrentCycleDate(LocalDateTime now) {
-        LocalDate today = now.toLocalDate();
-        if (now.toLocalTime().isBefore(LocalTime.of(6, 0))) {
-            Optional<RoutineResult> yesterday = routineResultRepository
-                    .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), today.minusDays(1));
-            if (yesterday.isPresent() && isOvernightCycle(yesterday.get())) {
-                return today.minusDays(1);
-            }
-        }
-        return today;
-    }
-
-    private boolean isOvernightCycle(RoutineResult r) {
-        return r.getMode() == RoutineMode.NIGHT || r.getSleepEnd().toLocalDate().isAfter(r.getDate());
+        return now.toLocalDate();
     }
 
     @Transactional
