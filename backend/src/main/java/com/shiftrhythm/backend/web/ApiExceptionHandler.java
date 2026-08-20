@@ -4,6 +4,7 @@ import com.shiftrhythm.backend.domain.routine.ParseFailedException;
 import com.shiftrhythm.backend.domain.routine.PreviewExpiredException;
 import com.shiftrhythm.backend.domain.routine.RoutineNotFoundException;
 import com.shiftrhythm.backend.domain.routine.RowLabelRequiredException;
+import com.shiftrhythm.backend.domain.routine.ScheduleMissingTodayException;
 import com.shiftrhythm.backend.domain.schedule.InvalidShiftTransitionException;
 import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -51,8 +52,22 @@ public class ApiExceptionHandler {
         String date = e.date().toString();
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
                 "error", "ROUTINE_NOT_FOUND",
-                "message", "%s를 포함한 근무표가 없어요. %s를 포함한 근무표를 다시 올리거나 근무표 시작 날짜를 수정해 주세요."
+                "message", "%s를 포함한 근무표가 없어요. %s를 포함한 근무표를 다시 등록해 주세요."
                         .formatted(date, date)
+        ));
+    }
+
+    /**
+     * POST /api/onboarding/schedule에 오늘이 빠진 근무표를 등록하려 할 때. PATCH /{date}는 기존 날짜
+     * 수정 전용이라 새 날짜를 못 늘리므로, 통째로 재등록하는 것 외엔 방법이 없다는 걸 명확히 안내한다.
+     */
+    @ExceptionHandler(ScheduleMissingTodayException.class)
+    public ResponseEntity<Map<String, String>> handleScheduleMissingToday(ScheduleMissingTodayException e) {
+        String today = e.today().toString();
+        return ResponseEntity.unprocessableEntity().body(Map.of(
+                "error", "SCHEDULE_MISSING_TODAY",
+                "message", "오늘(%s)이 포함되지 않은 근무표는 등록할 수 없어요. 오늘을 포함한 근무표를 다시 등록해 주세요."
+                        .formatted(today)
         ));
     }
 

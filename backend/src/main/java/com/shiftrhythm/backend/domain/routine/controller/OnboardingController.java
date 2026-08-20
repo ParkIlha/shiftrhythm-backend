@@ -202,6 +202,31 @@ public class OnboardingController {
         return onboardingService.getSchedule();
     }
 
+    public record ShiftStartDateRequest(
+            @Schema(description = "근무표의 새 시작일. 기존 근무표의 상대 패턴(요일 순서, 근무유형)은 그대로 두고 이 날짜부터 다시 배치된다.")
+            @NotNull LocalDate newStartDate
+    ) {
+    }
+
+    @Operation(
+            summary = "근무표 시작일 수정",
+            description = """
+                    이미 등록된 근무표의 요일 패턴/근무유형은 그대로 두고, 절대 날짜만 newStartDate부터
+                    다시 배치한다. 근무표를 사진 다시 찍어 올리거나 처음부터 재등록할 필요 없이, "오늘이
+                    범위 밖이라 저장이 막힌" 경우(SCHEDULE_MISSING_TODAY) 시작일 하나만 골라 고칠 때 쓴다.
+                    monthGuessed 여부와 무관하게 언제든 호출 가능하다.
+
+                    내부적으로 POST /api/onboarding/schedule와 동일한 파이프라인을 타므로, 새 범위에도
+                    오늘이 안 들어가면 똑같이 422(SCHEDULE_MISSING_TODAY)로 거부된다. 개별 날짜에 지정했던
+                    시각 override는 초기화된다(POST와 동일한 전체 재등록이라서).
+                    """
+    )
+    @PatchMapping("/api/onboarding/schedule/start-date")
+    public OkResponse shiftStartDate(@Valid @RequestBody ShiftStartDateRequest request) {
+        onboardingService.shiftScheduleStartDate(request.newStartDate());
+        return new OkResponse(true);
+    }
+
     public record EditShiftRequest(
             @Schema(description = "드롭다운으로 선택: DAY/EVENING/NIGHT/OFF") @NotNull ShiftType shiftType,
             @Schema(description = "시작 시각. OFF면 무시된다. 생략하면 그 근무유형의 기본 시작 시각을 따른다.", nullable = true)

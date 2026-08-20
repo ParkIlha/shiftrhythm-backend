@@ -6,6 +6,7 @@ import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
+import com.shiftrhythm.backend.domain.schedule.util.AppClock;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
 import com.shiftrhythm.backend.web.CurrentUser;
@@ -33,7 +34,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Transactional
 class OnboardingServiceScheduleEditTest {
 
-    private static final LocalDate D0 = LocalDate.now().plusDays(10); // 과거 데이터와 안 겹치게 미래로
+    // registerSchedule이 이제 "오늘이 범위 안에 있어야" 저장을 허용하므로 D0는 오늘이어야 한다.
+    // AppClock(KST 고정)과 동일한 기준을 써야 한다 — LocalDate.now()(시스템 기본 타임존)를 쓰면 CI
+    // 러너처럼 기본 타임존이 UTC인 환경에서 KST 자정 전후(UTC 15~24시) 실행 시 하루가 어긋나 flaky해진다.
+    private static final LocalDate D0 = AppClock.now().toLocalDate();
 
     @Autowired
     private OnboardingService onboardingService;
@@ -148,5 +152,46 @@ class OnboardingServiceScheduleEditTest {
         RoutineResult v1 = routineResultRepository
                 .findByUserProfileIdAndDateAndVersion(CurrentUser.id(), D0, 1).orElseThrow();
         assertThat(v1.isCurrent()).isFalse();
+    }
+
+    @Test
+    void registerSchedule_withoutToday_isRejected() {
+        // 오늘이 빠진 근무표는 저장 자체가 막혀야 한다 — PATCH /{date}는 기존 날짜 수정 전용이라
+        // 나중에 오늘을 추가할 방법이 없으므로, 등록 시점에 막지 않으면 /routines/today가 뒤늦게 터진다.
+        assertThatThrownBy(() -> onboardingService.registerSchedule(
+                List.of(new OnboardingService.ShiftTypeDefaultInput(ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0))),
+                List.of(new OnboardingService.ShiftInput(D0.plusDays(5), ShiftType.DAY))
+        )).isInstanceOf(ScheduleMissingTodayException.class);
+
+        // 거부됐으니 D0(setUp에서 등록된 오늘 근무표)는 그대로 남아있어야 한다.
+        RoutineResult stillThere = routineResultRepository
+                .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), D0).orElseThrow();
+        assertThat(stillThere.getVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void shiftScheduleStartDate_movesAllDatesByOffsetAndKeepsRelativePattern() {
+        // setUp에서 D0/D0+1/D0+2(전부 DAY)가 등록돼있다. 시작일을 하루 앞당기면 요일 패턴(DAY 3연속)은
+        // 그대로 유지한 채 절대 날짜만 D0-1/D0/D0+1로 밀려야 하고, 오늘(D0)은 둘째 날로 여전히 포함된다.
+        LocalDate newStart = D0.minusDays(1);
+
+        onboardingService.shiftScheduleStartDate(newStart);
+
+        List<ScheduleDayView> views = onboardingService.getSchedule();
+        assertThat(views).extracting(ScheduleDayView::date)
+                .containsExactly(newStart, newStart.plusDays(1), newStart.plusDays(2));
+        assertThat(views).extracting(ScheduleDayView::shiftType)
+                .containsExactly(ShiftType.DAY, ShiftType.DAY, ShiftType.DAY);
+
+        RoutineResult todayRoutine = routineResultRepository
+                .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), D0).orElseThrow();
+        assertThat(todayRoutine.getMode().name()).isEqualTo("DAY");
+    }
+
+    @Test
+    void shiftScheduleStartDate_toRangeMissingToday_isRejected() {
+        // 시작일을 수정해도 결과 범위에 오늘이 안 들어가면 registerSchedule과 동일하게 거부돼야 한다.
+        assertThatThrownBy(() -> onboardingService.shiftScheduleStartDate(D0.plusDays(5)))
+                .isInstanceOf(ScheduleMissingTodayException.class);
     }
 }

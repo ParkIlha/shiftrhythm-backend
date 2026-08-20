@@ -7,6 +7,7 @@ import com.shiftrhythm.backend.domain.ai.dto.ParseDisruptionResponse;
 import com.shiftrhythm.backend.domain.ai.dto.SuggestAdjustmentResponse;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
+import com.shiftrhythm.backend.domain.schedule.util.AppClock;
 import com.shiftrhythm.backend.web.CurrentUser;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,7 +36,10 @@ import static org.mockito.Mockito.when;
 @Transactional
 class ReplanFacadeUnknownReasonTest {
 
-    private static final LocalDate DATE = LocalDate.now();
+    // AppClock(KST 고정)과 동일한 기준을 써야 한다 — LocalDate.now()(시스템 기본 타임존)는 CI처럼
+    // 기본 타임존이 UTC인 환경에서 KST 자정 전후 실행 시 registerSchedule의 "오늘 포함 필수" 검증과
+    // 어긋나 flaky해진다.
+    private static final LocalDate DATE = AppClock.now().toLocalDate();
 
     @Autowired
     private OnboardingService onboardingService;
