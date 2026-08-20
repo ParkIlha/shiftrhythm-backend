@@ -81,7 +81,7 @@ class RoutineFacadeAiFallbackTest {
         shiftRepository.save(new Shift(CurrentUser.id(), DATE.plusDays(1), ShiftType.DAY, null, null));
 
         MealTimes mealTimes = new MealTimes(LocalTime.of(7, 0), null, null,
-                LocalTime.of(21, 0), LocalTime.of(0, 0), LocalTime.of(6, 0), LocalTime.of(18, 0));
+                LocalTime.of(21, 0), LocalTime.of(18, 0));
         original = new RoutineResult(CurrentUser.id(), DATE, 1, true, null, RoutineMode.DAY,
                 LocalDateTime.of(DATE, LocalTime.of(23, 0)), LocalDateTime.of(DATE.plusDays(1), LocalTime.of(6, 30)),
                 null, null, null, mealTimes);

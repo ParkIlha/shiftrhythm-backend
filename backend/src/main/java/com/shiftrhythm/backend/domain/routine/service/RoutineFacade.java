@@ -10,6 +10,7 @@ import com.shiftrhythm.backend.domain.jetlag.service.JetlagService;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.policy.AiSleepMealValidator;
+import com.shiftrhythm.backend.domain.schedule.policy.MealBlockCalculator;
 import com.shiftrhythm.backend.domain.schedule.MealBlock;
 import com.shiftrhythm.backend.domain.schedule.RoutineMode;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
@@ -45,7 +46,13 @@ public class RoutineFacade {
     private static final Logger log = LoggerFactory.getLogger(RoutineFacade.class);
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final int HISTORY_LOOKBACK_DAYS = 5;
-    private static final int SNACK_BEFORE_SLEEP_MINUTES = 60;
+    /**
+     * nightRestriction은 더 이상 백엔드 하드 제약이 아니지만(AiSleepMealValidator 참고),
+     * ai-server 쪽 SuggestAdjustmentRequest.MealConstraints 계약은 이 세션에서 안 건드리기로 했으므로
+     * 필드 자체는 그대로 유지하고 고정값만 보낸다 — 실제로는 프롬프트 권고 문구로만 쓰일 예정.
+     */
+    private static final String NIGHT_RESTRICTION_START = "00:00";
+    private static final String NIGHT_RESTRICTION_END = "06:00";
 
     private final RoutineResultRepository routineResultRepository;
     private final DailyCheckInRepository dailyCheckInRepository;
@@ -104,8 +111,7 @@ public class RoutineFacade {
 
         List<TimelineSegment> timeline = buildTimeline(userId, date, current, computation.today());
         MealTimes mt = current.getMealTimes();
-        var mealConstraints = new TodayRoutineView.MealConstraintsView(
-                mt.bigMealCutoff(), mt.nightRestrictionStart(), mt.nightRestrictionEnd(), mt.caffeineCutoff());
+        var mealConstraints = new TodayRoutineView.MealConstraintsView(mt.bigMealCutoff(), mt.caffeineCutoff());
 
         var jetlag = jetlagService.todayView(date, current.getSleepEnd().toLocalTime(), profile.getName());
         var sleepDeficit = new TodayRoutineView.SleepDeficitView(
@@ -148,9 +154,13 @@ public class RoutineFacade {
 
     private List<TimelineSegment> daySegments(RoutineResult r, ShiftWindow shift, LocalDate date) {
         List<TimelineSegment> segments = new ArrayList<>();
-        if (shift.type() != ShiftType.OFF && shift.startTime() != null) {
-            LocalDateTime shiftEnd = r.getAdjustedShiftEndTime() != null ? r.getAdjustedShiftEndTime() : shift.endTime();
-            segments.add(new TimelineSegment("근무", shift.startTime(), shiftEnd));
+        boolean hasWork = shift.type() != ShiftType.OFF && shift.startTime() != null;
+        LocalDateTime workStart = null;
+        LocalDateTime workEnd = null;
+        if (hasWork) {
+            workStart = shift.startTime();
+            workEnd = r.getAdjustedShiftEndTime() != null ? r.getAdjustedShiftEndTime() : shift.endTime();
+            segments.add(new TimelineSegment("근무", workStart, workEnd));
         }
         segments.add(new TimelineSegment("주수면", r.getSleepStart(), r.getSleepEnd()));
         if (r.getSupplementarySleepStart() != null) {
@@ -158,14 +168,21 @@ public class RoutineFacade {
         }
         // 식사는 여전히 날짜 없는 벽시계 시각(MealTimes)으로만 저장되므로, 이 RoutineResult가 속한
         // 등록 날짜(date)를 그대로 붙인다 — 근무/수면과 달리 자정을 넘겨 다음날로 미뤄지는 경우가 없다.
+        // 단, mainMeal2는 근무가 있는 날엔 정밀 시각을 쓰지 않고 근무 세그먼트의 start~end를 그대로
+        // 재사용한다 — "이 사이에 드세요"로 프론트가 보여줄 수 있게. OFF 날엔 mainMeal1과 동일하게
+        // 정밀 시각 ±30분으로 보여준다.
         MealTimes mt = r.getMealTimes();
-        if (mt.mainMeal() != null) {
-            LocalDateTime start = LocalDateTime.of(date, mt.mainMeal());
-            segments.add(new TimelineSegment("주요식사", start, start.plusMinutes(30)));
+        if (mt.mainMeal1() != null) {
+            LocalDateTime start = LocalDateTime.of(date, mt.mainMeal1());
+            segments.add(new TimelineSegment("주요식사1", start, start.plusMinutes(30)));
         }
-        if (mt.subMeal() != null) {
-            LocalDateTime start = LocalDateTime.of(date, mt.subMeal());
-            segments.add(new TimelineSegment("서브식사", start, start.plusMinutes(20)));
+        if (mt.mainMeal2() != null) {
+            if (hasWork) {
+                segments.add(new TimelineSegment("주요식사2", workStart, workEnd));
+            } else {
+                LocalDateTime start = LocalDateTime.of(date, mt.mainMeal2());
+                segments.add(new TimelineSegment("주요식사2", start, start.plusMinutes(30)));
+            }
         }
         if (mt.snackTime() != null) {
             LocalDateTime start = LocalDateTime.of(date, mt.snackTime());
@@ -190,9 +207,8 @@ public class RoutineFacade {
                 sb.ankerBlockEnd() == null ? null : sb.ankerBlockEnd().toLocalTime().format(TIME_FORMAT)
         );
         SuggestAdjustmentRequest.MealConstraints mealConstraintsDto = new SuggestAdjustmentRequest.MealConstraints(
-                computation.mealBlock().bigMealCutoff().format(TIME_FORMAT),
-                computation.mealBlock().nightRestrictionStart().format(TIME_FORMAT),
-                computation.mealBlock().nightRestrictionEnd().format(TIME_FORMAT)
+                computation.mealBlock().bigMealCutoff().toLocalTime().format(TIME_FORMAT),
+                NIGHT_RESTRICTION_START, NIGHT_RESTRICTION_END
         );
         SuggestAdjustmentRequest.History history = buildHistory(userId, date, profile);
         String todayContext = todayCheckIn.getNightHungerScore() != null
@@ -241,10 +257,9 @@ public class RoutineFacade {
      */
     private boolean applyToCurrent(RoutineResult current, RoutineComputation computation, SuggestAdjustmentResponse response) {
         SleepBlock clampedSleep;
-        LocalTime clampedMainMeal;
-        LocalTime subMeal;
+        LocalTime clampedMainMeal1;
+        LocalTime clampedMainMeal2;
         LocalTime snackTime;
-        MealBlock mb = computation.mealBlock();
         try {
             SleepWindow window = computation.sleepWindow();
             SleepBlock proposedSleep = new SleepBlock(
@@ -260,39 +275,45 @@ public class RoutineFacade {
                     computation.sleepBlock().ankerBlockEnd()
             );
             clampedSleep = AiSleepMealValidator.clampSleep(proposedSleep, computation.sleepBlock(), computation.sleepWindow());
+            if (AiSleepMealValidator.isMainSleepSuspiciouslyShort(clampedSleep, computation.sleepBlock())) {
+                log.warn("AI가 제안한 주수면이 규칙 기반 초안보다 80% 미만으로 짧아 규칙 기반 초안을 대신 사용합니다: date={}", current.getDate());
+                clampedSleep = computation.sleepBlock();
+            }
 
-            LocalTime mainMeal = LocalTime.parse(response.meal().mainMealTime());
-            clampedMainMeal = AiSleepMealValidator.clampMainMeal(mainMeal, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd());
-            subMeal = response.meal().subMealTime() == null ? null : LocalTime.parse(response.meal().subMealTime());
-            snackTime = response.meal().snackNeeded() && response.meal().snackTime() != null
+            // 식사 clamp는 확정된 최종 수면(clampedSleep) 기준이어야 한다 — 규칙 기반 초안이 아니라
+            // 실제로 저장될 수면 시각과 겹치는지를 봐야 하기 때문.
+            MealBlock finalMealBlock = MealBlockCalculator.calculate(clampedSleep);
+
+            LocalTime mainMeal1 = LocalTime.parse(response.meal().mainMealTime());
+            clampedMainMeal1 = AiSleepMealValidator.clampMeal(mainMeal1, finalMealBlock, true);
+
+            // TODO(ai-server mealTime2 필수화 시 제거): mainMeal2는 항상 필수인데 ai-server 계약은
+            // 아직 subMealTime을 선택값으로 취급한다 — AI가 안 주면 안전값(bigMealCutoff)으로 채우는
+            // 임시방편. ai-server가 mealTime2를 필수 응답으로 바꾸면 이 대체 로직을 지우고
+            // null이면 이번 AI 응답 전체를 실패 취급(기존 값 유지)하도록 바꿀 것.
+            LocalTime mainMeal2Candidate = response.meal().subMealTime() == null
+                    ? finalMealBlock.bigMealCutoff().toLocalTime()
+                    : LocalTime.parse(response.meal().subMealTime());
+            clampedMainMeal2 = AiSleepMealValidator.clampMeal(mainMeal2Candidate, finalMealBlock, true);
+
+            LocalTime snackCandidate = response.meal().snackNeeded() && response.meal().snackTime() != null
                     ? LocalTime.parse(response.meal().snackTime())
                     : null;
+            snackTime = snackCandidate == null ? null : AiSleepMealValidator.clampMeal(snackCandidate, finalMealBlock, false);
+
+            current.setSleepStart(clampedSleep.mainSleepStart());
+            current.setSleepEnd(clampedSleep.mainSleepEnd());
+            current.setSupplementarySleepStart(clampedSleep.supplementarySleepStart());
+            current.setSupplementarySleepEnd(clampedSleep.supplementarySleepEnd());
+            current.setNapMinutes(clampedSleep.napMinutes());
+            current.setMealTimes(new MealTimes(clampedMainMeal1, clampedMainMeal2, snackTime,
+                    finalMealBlock.bigMealCutoff().toLocalTime(), finalMealBlock.caffeineCutoff().toLocalTime()));
+            current.setAiReason(response.sleep().reason() + " / " + response.meal().reason());
+            return true;
         } catch (DateTimeParseException | NullPointerException e) {
             log.warn("AI 응답 시각 파싱 실패, 기존 루틴을 유지하고 이번 조정은 건너뜁니다: date={}, error={}",
                     current.getDate(), e.getMessage());
             return false;
         }
-
-        if (AiSleepMealValidator.isMainSleepSuspiciouslyShort(clampedSleep, computation.sleepBlock())) {
-            log.warn("AI가 제안한 주수면이 규칙 기반 초안보다 80% 미만으로 짧아 규칙 기반 초안을 대신 사용합니다: date={}", current.getDate());
-            clampedSleep = computation.sleepBlock();
-        }
-
-        if (snackTime != null) {
-            long toSnack = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), snackTime);
-            long toSleepStart = SleepTimeMath.minutesBetween(mb.nightRestrictionEnd(), clampedSleep.mainSleepStart().toLocalTime());
-            if (toSnack > toSleepStart) {
-                snackTime = clampedSleep.mainSleepStart().toLocalTime().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
-            }
-        }
-
-        current.setSleepStart(clampedSleep.mainSleepStart());
-        current.setSleepEnd(clampedSleep.mainSleepEnd());
-        current.setSupplementarySleepStart(clampedSleep.supplementarySleepStart());
-        current.setSupplementarySleepEnd(clampedSleep.supplementarySleepEnd());
-        current.setNapMinutes(clampedSleep.napMinutes());
-        current.setMealTimes(new MealTimes(clampedMainMeal, subMeal, snackTime, mb.bigMealCutoff(), mb.nightRestrictionStart(), mb.nightRestrictionEnd(), mb.caffeineCutoff()));
-        current.setAiReason(response.sleep().reason() + " / " + response.meal().reason());
-        return true;
     }
 }

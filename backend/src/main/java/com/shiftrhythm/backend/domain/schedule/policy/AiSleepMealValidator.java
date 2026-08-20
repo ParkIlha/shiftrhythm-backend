@@ -11,8 +11,8 @@ import java.time.LocalTime;
  * 기준으로 검증하고 벗어난 값을 clamp한다.
  *
  * 수면 쪽은 SleepWindow/SleepBlock이 날짜를 포함한 LocalDateTime이라 순서 비교(isBefore/isAfter)만으로
- * 충분하다. 식사 쪽(clampMainMeal/isWithin)은 날짜 없는 하루 반복 벽시계 기준이라 여전히
- * SleepTimeMath의 순환(LocalTime) 비교를 쓴다.
+ * 충분하다. 식사 쪽(clampMeal)은 AI가 날짜 없는 "HH:mm"으로 돌려주므로, mainSleepStart와 가장 가까운
+ * 캘린더 날짜에 anchor한 뒤 LocalDateTime으로 비교한다.
  */
 public final class AiSleepMealValidator {
 
@@ -73,21 +73,51 @@ public final class AiSleepMealValidator {
         return baselineMinutes > 0 && proposedMinutes < baselineMinutes * 0.8;
     }
 
-    public static LocalTime clampMainMeal(LocalTime candidate, LocalTime bigMealCutoff,
-                                           LocalTime nightRestrictionStart, LocalTime nightRestrictionEnd) {
-        if (isWithin(candidate, nightRestrictionStart, nightRestrictionEnd)) {
-            // 컷오프 자체가 제한 구간 안이면(야간 근무 후 이른 아침에 자는 경우) 구간 끝은 이미 컷오프를 넘긴 시각이다
-            return isWithin(bigMealCutoff, nightRestrictionStart, nightRestrictionEnd) ? bigMealCutoff : nightRestrictionEnd;
+    /**
+     * mainMeal1/mainMeal2 공용 clamp. 근무일/OFF 구분은 이 함수의 책임이 아니다(그건 타임라인
+     * 조립 단계에서만 갈린다) — 여기서는 항상 균일하게 두 하드 제약을 적용한다:
+     * 1) 수면블록(주+보조) 회피 — 자는 동안 못 먹으니 반드시 하드.
+     * 2) applyCutoff가 true면 bigMealCutoff도 하드 적용(간식은 컷오프가 없으므로 false로 호출).
+     *
+     * candidate는 AI가 "HH:mm"(날짜 없음)으로 돌려준 값이라, mainSleepStart와 가장 가까운 캘린더
+     * 날짜로 먼저 anchor한 뒤 판정한다.
+     */
+    public static LocalTime clampMeal(LocalTime candidate, MealBlock mb, boolean applyCutoff) {
+        LocalDateTime anchored = anchorMealTime(candidate, mb.mainSleepStart());
+        anchored = avoidInterval(anchored, mb.mainSleepStart(), mb.mainSleepEnd());
+        if (mb.supplementarySleepStart() != null && mb.supplementarySleepEnd() != null) {
+            anchored = avoidInterval(anchored, mb.supplementarySleepStart(), mb.supplementarySleepEnd());
         }
-        long fromRestrictionEndToCandidate = SleepTimeMath.minutesBetween(nightRestrictionEnd, candidate);
-        long fromRestrictionEndToCutoff = SleepTimeMath.minutesBetween(nightRestrictionEnd, bigMealCutoff);
-        return fromRestrictionEndToCandidate > fromRestrictionEndToCutoff ? bigMealCutoff : candidate;
+        if (applyCutoff && anchored.isAfter(mb.bigMealCutoff())) {
+            anchored = mb.bigMealCutoff();
+        }
+        return anchored.toLocalTime();
     }
 
-    private static boolean isWithin(LocalTime t, LocalTime start, LocalTime end) {
-        long span = SleepTimeMath.minutesBetween(start, end);
-        long offset = SleepTimeMath.minutesBetween(start, t);
-        return offset < span;
+    /** 날짜 없는 시각을 reference(보통 mainSleepStart)와 가장 가까운 캘린더 날짜에 붙인다. */
+    private static LocalDateTime anchorMealTime(LocalTime time, LocalDateTime reference) {
+        LocalDateTime same = LocalDateTime.of(reference.toLocalDate(), time);
+        LocalDateTime best = same;
+        long bestDist = Math.abs(Duration.between(reference, same).toMinutes());
+        for (int dayOffset : new int[] {-1, 1}) {
+            LocalDateTime candidate = same.plusDays(dayOffset);
+            long dist = Math.abs(Duration.between(reference, candidate).toMinutes());
+            if (dist < bestDist) {
+                best = candidate;
+                bestDist = dist;
+            }
+        }
+        return best;
+    }
+
+    /** [start, end) 구간 안이면 더 가까운 경계 밖으로 민다. */
+    private static LocalDateTime avoidInterval(LocalDateTime candidate, LocalDateTime start, LocalDateTime end) {
+        if (candidate.isBefore(start) || !candidate.isBefore(end)) {
+            return candidate;
+        }
+        long toStart = Duration.between(start, candidate).toMinutes();
+        long toEnd = Duration.between(candidate, end).toMinutes();
+        return toStart <= toEnd ? start : end;
     }
 
     private static LocalDateTime clamp(LocalDateTime v, LocalDateTime lo, LocalDateTime hi) {

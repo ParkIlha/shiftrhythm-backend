@@ -19,7 +19,7 @@ public record TodayRoutineView(
         JetlagView jetlag,
         SleepDeficitView sleepDeficit
 ) {
-    public record MealConstraintsView(LocalTime bigMealCutoff, LocalTime nightRestrictionStart, LocalTime nightRestrictionEnd, LocalTime caffeineCutoff) {
+    public record MealConstraintsView(LocalTime bigMealCutoff, LocalTime caffeineCutoff) {
     }
 
     /** 최근 3일간 목표 수면시간 대비 부족했던 시간의 누적치(분). 0이면 부족분 없음. */
