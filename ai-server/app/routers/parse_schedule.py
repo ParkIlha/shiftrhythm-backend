@@ -17,10 +17,17 @@ SHIFT_TIME_PRESETS = {
 }
 
 
-def is_month_guessed(req_month, ai_shifts):
-    """요청에 month가 없고, AI도 단 하나의 shift에서조차 month를 못 읽었으면 전부 오늘 기준
-    추측이다 — 이땐 shifts[].date의 절대 연/월을 신뢰할 수 없다는 신호로 true를 반환한다."""
-    return req_month is None and all(s.get("month") is None for s in ai_shifts)
+def is_date_guessed(req_year, req_month, ai_shifts):
+    """표(와 요청)에서 절대 연/월을 확정하지 못했으면 True — shifts[].date 는 오늘 기준으로 조립한
+    '순서만 맞는 날짜'일 뿐이라는 신호다. 프론트가 첫 근무일을 물어 전체를 그만큼 민다.
+
+    월만 읽고 연도를 모르는 경우도 포함한다. 근무표는 연도를 거의 안 적어서 대개 여기 걸리는데,
+    연도가 틀리면 날짜가 통째로 다른 요일에 박히므로(예: 3/1이 2024년은 금, 2026년은 일)
+    월을 맞게 읽었어도 사용자 확인 없이 확정하면 안 된다.
+    """
+    month_known = req_month is not None or any(s.get("month") for s in ai_shifts)
+    year_known = req_year is not None or any(s.get("year") for s in ai_shifts)
+    return not (month_known and year_known)
 
 
 def fill_default_times(shift_types):
@@ -70,7 +77,7 @@ def parse_schedule(req: ScheduleReq):
     # AI가 칸마다 실제 월(과 있으면 연도)을 읽어오므로, 표가 두 달에 걸쳐 있어도(예: 8/28~9/3)
     # 칸별로 올바른 달로 조립된다. 표에 월/연도가 안 적혀 있으면 요청값 → 오늘 기준으로 채운다.
     today = date.today()
-    month_guessed = is_month_guessed(req.month, data["shifts"])
+    date_guessed = is_date_guessed(req.year, req.month, data["shifts"])
     shifts = []
     for s in data["shifts"]:
         month = s.get("month") or req.month or today.month
@@ -80,7 +87,8 @@ def parse_schedule(req: ScheduleReq):
         shifts.append({"date": f"{year:04d}-{month:02d}-{s['day']:02d}", "shiftType": s["shiftType"]})
     if not shifts:
         return JSONResponse(status_code=422, content={"error": "IMAGE_UNREADABLE"})
-    return ScheduleRes(shiftTypes=fill_default_times(data["shiftTypes"]), shifts=shifts, monthGuessed=month_guessed)
+    # 응답 필드명은 monthGuessed 그대로 둔다 — 백엔드 DTO/프론트가 이 이름으로 읽는다(의미만 넓어졌다).
+    return ScheduleRes(shiftTypes=fill_default_times(data["shiftTypes"]), shifts=shifts, monthGuessed=date_guessed)
 
 
 def _infer_year(month: int, today: date) -> int:
@@ -114,7 +122,9 @@ if __name__ == "__main__":
     half = fill_default_times([{"shiftType": "D", "mapped": "DAY", "startTime": "07:00"}])
     assert (half[0]["startTime"], half[0]["endTime"]) == ("08:00", "20:00")   # 반쪽이면 프리셋으로
 
-    assert is_month_guessed(None, [{"month": None}, {"month": None}]) is True     # 요청도 AI도 다 없음
-    assert is_month_guessed(9, [{"month": None}, {"month": None}]) is False       # 요청에 month 있음
-    assert is_month_guessed(None, [{"month": None}, {"month": 9}]) is False       # AI가 하나라도 읽음
+    assert is_date_guessed(None, None, [{}, {}]) is True                          # 요청도 표도 아무것도 없음
+    assert is_date_guessed(None, 9, [{}]) is True                                 # 월만 알고 연도 모름 → 물어본다
+    assert is_date_guessed(None, None, [{"month": 3}, {"month": 3}]) is True      # 표에 월만(삼일절 같은 단서)
+    assert is_date_guessed(2026, 9, [{}]) is False                                # 요청이 연·월 둘 다 지정
+    assert is_date_guessed(None, None, [{"month": 3, "year": 2024}]) is False     # 표에 연·월 둘 다 적힘
     print("ok")
