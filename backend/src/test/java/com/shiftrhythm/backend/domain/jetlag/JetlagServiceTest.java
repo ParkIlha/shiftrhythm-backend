@@ -1,5 +1,6 @@
 package com.shiftrhythm.backend.domain.jetlag;
 
+import com.shiftrhythm.backend.domain.jetlag.service.JetlagService;
 import com.shiftrhythm.backend.domain.routine.MealTimes;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;

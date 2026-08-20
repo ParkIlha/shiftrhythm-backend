@@ -1,5 +1,6 @@
 package com.shiftrhythm.backend.domain.routine;
 
+import com.shiftrhythm.backend.domain.routine.service.OnboardingService;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;

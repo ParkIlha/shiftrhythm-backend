@@ -1,7 +1,8 @@
-package com.shiftrhythm.backend.domain.collectbook;
+package com.shiftrhythm.backend.domain.collectbook.service;
+import com.shiftrhythm.backend.domain.collectbook.*;
 
-import com.shiftrhythm.backend.domain.jetlag.DailyTravelCalculator;
-import com.shiftrhythm.backend.domain.jetlag.JetlagMapper;
+import com.shiftrhythm.backend.domain.jetlag.policy.DailyTravelCalculator;
+import com.shiftrhythm.backend.domain.jetlag.policy.JetlagMapper;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;

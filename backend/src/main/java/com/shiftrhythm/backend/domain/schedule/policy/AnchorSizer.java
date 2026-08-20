@@ -1,4 +1,6 @@
-package com.shiftrhythm.backend.domain.schedule;
+package com.shiftrhythm.backend.domain.schedule.policy;
+import com.shiftrhythm.backend.domain.schedule.*;
+import com.shiftrhythm.backend.domain.schedule.util.*;
 
 /**
  * 기존 수면 리듬(prevSleepBlock)과 새로 배치하려는 수면 리듬 사이에서

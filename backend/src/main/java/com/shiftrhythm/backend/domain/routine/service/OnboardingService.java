@@ -1,17 +1,18 @@
-package com.shiftrhythm.backend.domain.routine;
+package com.shiftrhythm.backend.domain.routine.service;
+import com.shiftrhythm.backend.domain.routine.*;
 
 import com.shiftrhythm.backend.domain.ai.AiScheduleAdapter;
 import com.shiftrhythm.backend.domain.ai.dto.SuggestAdjustmentRequest;
 import com.shiftrhythm.backend.domain.ai.dto.SuggestAdjustmentResponse;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
-import com.shiftrhythm.backend.domain.schedule.AiSleepMealValidator;
+import com.shiftrhythm.backend.domain.schedule.policy.AiSleepMealValidator;
 import com.shiftrhythm.backend.domain.schedule.MealBlock;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
 import com.shiftrhythm.backend.domain.schedule.SleepBlock;
-import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
+import com.shiftrhythm.backend.domain.schedule.util.SleepTimeMath;
 import com.shiftrhythm.backend.domain.schedule.SleepWindow;
 import com.shiftrhythm.backend.domain.schedule.entity.Shift;
 import com.shiftrhythm.backend.domain.schedule.entity.ShiftTypeDefault;

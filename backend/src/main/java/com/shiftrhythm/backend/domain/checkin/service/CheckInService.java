@@ -1,4 +1,4 @@
-package com.shiftrhythm.backend.domain.checkin;
+package com.shiftrhythm.backend.domain.checkin.service;
 
 import com.shiftrhythm.backend.domain.checkin.entity.DailyCheckIn;
 import com.shiftrhythm.backend.domain.checkin.repository.DailyCheckInRepository;

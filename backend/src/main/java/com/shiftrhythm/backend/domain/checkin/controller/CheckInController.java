@@ -1,6 +1,8 @@
-package com.shiftrhythm.backend.web;
+package com.shiftrhythm.backend.domain.checkin.controller;
+import com.shiftrhythm.backend.domain.checkin.service.*;
+import com.shiftrhythm.backend.web.CurrentUser;
 
-import com.shiftrhythm.backend.domain.checkin.CheckInService;
+import com.shiftrhythm.backend.domain.checkin.service.CheckInService;
 import com.shiftrhythm.backend.domain.checkin.entity.DailyCheckIn;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
 import com.shiftrhythm.backend.domain.schedule.entity.ShiftTypeDefault;

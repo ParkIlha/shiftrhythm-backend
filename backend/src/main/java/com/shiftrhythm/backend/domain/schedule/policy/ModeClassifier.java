@@ -1,4 +1,6 @@
-package com.shiftrhythm.backend.domain.schedule;
+package com.shiftrhythm.backend.domain.schedule.policy;
+import com.shiftrhythm.backend.domain.schedule.*;
+import com.shiftrhythm.backend.domain.schedule.util.*;
 
 import java.time.LocalDate;
 import java.util.Comparator;

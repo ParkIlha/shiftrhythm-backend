@@ -1,8 +1,10 @@
-package com.shiftrhythm.backend.web;
+package com.shiftrhythm.backend.domain.report.controller;
+import com.shiftrhythm.backend.domain.report.*;
+import com.shiftrhythm.backend.domain.report.service.*;
 
 import com.shiftrhythm.backend.domain.report.DailyReportView;
 import com.shiftrhythm.backend.domain.report.MonthlyReportView;
-import com.shiftrhythm.backend.domain.report.ReportFacade;
+import com.shiftrhythm.backend.domain.report.service.ReportFacade;
 import com.shiftrhythm.backend.domain.report.WeeklyReportView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

@@ -1,18 +1,19 @@
-package com.shiftrhythm.backend.domain.routine;
+package com.shiftrhythm.backend.domain.routine.service;
+import com.shiftrhythm.backend.domain.routine.*;
 
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
 import com.shiftrhythm.backend.domain.schedule.DaySchedule;
-import com.shiftrhythm.backend.domain.schedule.MealBlockCalculator;
-import com.shiftrhythm.backend.domain.schedule.ModeClassifier;
+import com.shiftrhythm.backend.domain.schedule.policy.MealBlockCalculator;
+import com.shiftrhythm.backend.domain.schedule.policy.ModeClassifier;
 import com.shiftrhythm.backend.domain.schedule.RoutineMode;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
 import com.shiftrhythm.backend.domain.schedule.ShiftWindow;
 import com.shiftrhythm.backend.domain.schedule.SleepBlock;
-import com.shiftrhythm.backend.domain.schedule.SleepBlockCalculator;
+import com.shiftrhythm.backend.domain.schedule.policy.SleepBlockCalculator;
 import com.shiftrhythm.backend.domain.schedule.SleepBlockContext;
 import com.shiftrhythm.backend.domain.schedule.SleepBlockResult;
-import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
+import com.shiftrhythm.backend.domain.schedule.util.SleepTimeMath;
 import com.shiftrhythm.backend.domain.schedule.entity.Shift;
 import com.shiftrhythm.backend.domain.schedule.entity.ShiftTypeDefault;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
