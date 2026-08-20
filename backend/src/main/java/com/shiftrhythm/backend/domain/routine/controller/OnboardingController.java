@@ -202,6 +202,46 @@ public class OnboardingController {
         return onboardingService.getSchedule();
     }
 
+    public record AnchorStartDateRequest(
+            @Schema(description = "/schedule/parse가 돌려준(또는 사용자가 화면에서 검토 중인) 날짜별 근무 목록. "
+                    + "아직 서버에 저장되지 않은, 확정 전 상태를 그대로 담아 보낸다.")
+            @NotNull List<ShiftDto> shifts,
+            @Schema(description = "사용자가 고른 새 시작일(오늘을 포함하도록). shifts의 상대적 순서/근무유형은 그대로 두고 이 날짜부터 다시 배치한다.")
+            @NotNull LocalDate newStartDate
+    ) {
+    }
+
+    public record AnchorStartDateResponse(List<ShiftDto> shifts) {
+    }
+
+    @Operation(
+            summary = "근무표 시작일 보정 (저장 전, 순수 계산)",
+            description = """
+                    아직 POST /api/onboarding/schedule로 확정 등록하기 "전" 단계에서만 쓴다 — 사진 파싱
+                    직후 검토 화면에서, 파싱된 근무표에 오늘이 포함되지 않으면(monthGuessed 여부와 무관하게
+                    항상 발생할 수 있다) 사용자가 시작일을 새로 고르는 데 쓴다.
+
+                    shifts의 상대적 패턴(순서, 근무유형)은 그대로 두고 날짜만 newStartDate부터 다시 배치해서
+                    돌려준다 — DB에 아무것도 저장하지 않는 순수 계산이다. 프론트는 이 응답의 shifts를 그대로
+                    (또는 사용자가 더 검토/수정한 뒤) POST /api/onboarding/schedule에 최종 등록으로 보내면 된다.
+
+                    이미 확정 등록된 근무표를 나중에(홈 화면에서 오늘이 범위를 벗어난 경우) 고치는 건 이
+                    엔드포인트가 아니라 PATCH /api/onboarding/schedule/start-date를 쓴다 — 그건 DB에 이미
+                    저장된 근무표를 대상으로 하고, 이건 아직 저장되지 않은 걸 대상으로 한다.
+                    """
+    )
+    @PostMapping("/api/onboarding/schedule/anchor-start-date")
+    public AnchorStartDateResponse anchorStartDate(@Valid @RequestBody AnchorStartDateRequest request) {
+        List<OnboardingService.ShiftInput> shifts = request.shifts().stream()
+                .map(s -> new OnboardingService.ShiftInput(s.date(), s.shiftType()))
+                .toList();
+        List<OnboardingService.ShiftInput> anchored = OnboardingService.anchorShiftsToStartDate(shifts, request.newStartDate());
+        List<ShiftDto> result = anchored.stream()
+                .map(s -> new ShiftDto(s.date(), s.shiftType()))
+                .toList();
+        return new AnchorStartDateResponse(result);
+    }
+
     public record ShiftStartDateRequest(
             @Schema(description = "근무표의 새 시작일. 기존 근무표의 상대 패턴(요일 순서, 근무유형)은 그대로 두고 이 날짜부터 다시 배치된다.")
             @NotNull LocalDate newStartDate

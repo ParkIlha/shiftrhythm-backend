@@ -199,9 +199,28 @@ public class OnboardingService {
     }
 
     /**
+     * shifts의 상대적 패턴(순서, 근무유형)은 그대로 두고 절대 날짜만 newStartDate부터 다시 배치한
+     * 새 리스트를 계산한다. DB 접근 없는 순수 계산 — 아직 아무것도 저장되지 않은 온보딩 파싱 검토
+     * 단계(오늘이 빠진 근무표를 최초 등록하기 "전"에 시작일을 고르는 화면)에서 쓴다. 이미 저장된
+     * 근무표를 고치는 건 {@link #shiftScheduleStartDate}(DB 기반, 최초 등록 이후에만 유효).
+     */
+    public static List<ShiftInput> anchorShiftsToStartDate(List<ShiftInput> shifts, LocalDate newStartDate) {
+        if (shifts.isEmpty()) {
+            return shifts;
+        }
+        LocalDate currentStart = shifts.stream().map(ShiftInput::date).min(LocalDate::compareTo).orElseThrow();
+        long offsetDays = java.time.temporal.ChronoUnit.DAYS.between(currentStart, newStartDate);
+        return shifts.stream()
+                .map(s -> new ShiftInput(s.date().plusDays(offsetDays), s.shiftType()))
+                .toList();
+    }
+
+    /**
      * 이미 등록된 근무표의 상대적 패턴(요일 순서, 근무유형)은 그대로 두고 절대 날짜만 통째로 밀어서
      * 재등록한다. "오늘이 근무표 범위 밖이라 저장이 막힌" 상황(monthGuessed 여부와 무관하게 항상 사용
      * 가능)에서, 근무표를 처음부터 다시 입력할 필요 없이 새 시작일 하나만 골라서 고칠 수 있게 한다.
+     * 최초 등록(POST /schedule) "이후"에만 쓸 수 있다 — 아직 저장된 게 없으면 대상이 없으므로 예외.
+     * 저장 전 단계(파싱 직후 검토 화면)의 시작일 보정은 {@link #anchorShiftsToStartDate} 참고.
      *
      * shiftTypeDefaults(근무유형별 기본 시각)는 기존 등록값을 그대로 재사용한다 — 프론트가 다시 보낼
      * 필요 없다. 개별 날짜에 지정했던 시각 override는 registerSchedule의 기존 동작과 동일하게
@@ -215,15 +234,12 @@ public class OnboardingService {
             throw new IllegalStateException("먼저 근무표를 등록해야 합니다");
         }
 
-        LocalDate currentStart = existing.get(0).getDate();
-        long offsetDays = java.time.temporal.ChronoUnit.DAYS.between(currentStart, newStartDate);
-
         List<ShiftTypeDefaultInput> defaults = shiftTypeDefaultRepository.findByUserProfileId(userId).stream()
                 .map(d -> new ShiftTypeDefaultInput(d.getShiftType(), d.getDefaultStartTime(), d.getDefaultEndTime()))
                 .toList();
-        List<ShiftInput> shiftedShifts = existing.stream()
-                .map(s -> new ShiftInput(s.getDate().plusDays(offsetDays), s.getShiftType()))
-                .toList();
+        List<ShiftInput> shiftedShifts = anchorShiftsToStartDate(
+                existing.stream().map(s -> new ShiftInput(s.getDate(), s.getShiftType())).toList(),
+                newStartDate);
 
         registerSchedule(defaults, shiftedShifts);
     }
