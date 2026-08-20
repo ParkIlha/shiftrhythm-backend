@@ -6,6 +6,7 @@ import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;
 import com.shiftrhythm.backend.domain.schedule.ShiftNotFoundException;
 import com.shiftrhythm.backend.domain.schedule.ShiftType;
+import com.shiftrhythm.backend.domain.schedule.util.AppClock;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
 import com.shiftrhythm.backend.web.CurrentUser;
@@ -34,7 +35,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class OnboardingServiceScheduleEditTest {
 
     // registerSchedule이 이제 "오늘이 범위 안에 있어야" 저장을 허용하므로 D0는 오늘이어야 한다.
-    private static final LocalDate D0 = LocalDate.now();
+    // AppClock(KST 고정)과 동일한 기준을 써야 한다 — LocalDate.now()(시스템 기본 타임존)를 쓰면 CI
+    // 러너처럼 기본 타임존이 UTC인 환경에서 KST 자정 전후(UTC 15~24시) 실행 시 하루가 어긋나 flaky해진다.
+    private static final LocalDate D0 = AppClock.now().toLocalDate();
 
     @Autowired
     private OnboardingService onboardingService;
