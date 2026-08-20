@@ -48,7 +48,12 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(RoutineNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleRoutineNotFound(RoutineNotFoundException e) {
-        return ResponseEntity.notFound().build();
+        String date = e.date().toString();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "ROUTINE_NOT_FOUND",
+                "message", "%s를 포함한 근무표가 없어요. %s를 포함한 근무표를 다시 올리거나 근무표 시작 날짜를 수정해 주세요."
+                        .formatted(date, date)
+        ));
     }
 
     @ExceptionHandler(ShiftNotFoundException.class)

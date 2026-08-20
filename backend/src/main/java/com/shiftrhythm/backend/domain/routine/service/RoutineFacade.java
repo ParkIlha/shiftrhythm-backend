@@ -174,14 +174,14 @@ public class RoutineFacade {
         MealTimes mt = r.getMealTimes();
         if (mt.mainMeal1() != null) {
             LocalDateTime start = LocalDateTime.of(date, mt.mainMeal1());
-            segments.add(new TimelineSegment("주요식사1", start, start.plusMinutes(30)));
+            segments.add(new TimelineSegment("식사1", start, start.plusMinutes(30)));
         }
         if (mt.mainMeal2() != null) {
             if (hasWork) {
-                segments.add(new TimelineSegment("주요식사2", workStart, workEnd));
+                segments.add(new TimelineSegment("식사2", workStart, workEnd));
             } else {
                 LocalDateTime start = LocalDateTime.of(date, mt.mainMeal2());
-                segments.add(new TimelineSegment("주요식사2", start, start.plusMinutes(30)));
+                segments.add(new TimelineSegment("식사2", start, start.plusMinutes(30)));
             }
         }
         if (mt.snackTime() != null) {
