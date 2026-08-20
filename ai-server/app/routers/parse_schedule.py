@@ -81,14 +81,28 @@ def parse_schedule(req: ScheduleReq):
     shifts = []
     for s in data["shifts"]:
         month = s.get("month") or req.month or today.month
-        if not 1 <= month <= 12 or not 1 <= s.get("day", 0) <= 31:
-            continue  # 지어낸 날짜는 백엔드 LocalDate.parse 에서 터지므로 여기서 버린다
+        if not 1 <= month <= 12:
+            continue
         year = s.get("year") or req.year or _infer_year(month, today)
-        shifts.append({"date": f"{year:04d}-{month:02d}-{s['day']:02d}", "shiftType": s["shiftType"]})
+        iso = _valid_iso_date(year, month, s.get("day", 0))
+        if iso is None:
+            continue  # 존재하지 않는 날짜(2/30, 윤년 아닌 해의 2/29 등)는 버린다
+        shifts.append({"date": iso, "shiftType": s["shiftType"]})
     if not shifts:
         return JSONResponse(status_code=422, content={"error": "IMAGE_UNREADABLE"})
     # 응답 필드명은 monthGuessed 그대로 둔다 — 백엔드 DTO/프론트가 이 이름으로 읽는다(의미만 넓어졌다).
     return ScheduleRes(shiftTypes=fill_default_times(data["shiftTypes"]), shifts=shifts, monthGuessed=date_guessed)
+
+
+def _valid_iso_date(year: int, month: int, day: int) -> str | None:
+    """(year, month, day)가 실제로 존재하는 날짜면 'YYYY-MM-DD'를, 아니면(2/30, 윤년 아닌 해의
+    2/29 등 지어낸 날짜) None을 돌려준다. 예전엔 day<=31로만 걸렀는데, 달마다 실제 일수가 달라서
+    (2월 28/29일, 4·6·9·11월 30일) 존재하지 않는 날짜가 그대로 새 나가 백엔드 LocalDate.parse가
+    터지는 문제가 있었다."""
+    try:
+        return date(year, month, day).isoformat()
+    except (ValueError, TypeError):
+        return None
 
 
 def _infer_year(month: int, today: date) -> int:
@@ -127,4 +141,10 @@ if __name__ == "__main__":
     assert is_date_guessed(None, None, [{"month": 3}, {"month": 3}]) is True      # 표에 월만(삼일절 같은 단서)
     assert is_date_guessed(2026, 9, [{}]) is False                                # 요청이 연·월 둘 다 지정
     assert is_date_guessed(None, None, [{"month": 3, "year": 2024}]) is False     # 표에 연·월 둘 다 적힘
+
+    assert _valid_iso_date(2026, 2, 30) is None       # 2월엔 30일이 없다
+    assert _valid_iso_date(2026, 2, 29) is None       # 2026년은 윤년이 아니다
+    assert _valid_iso_date(2024, 2, 29) == "2024-02-29"  # 2024년은 윤년이라 존재한다
+    assert _valid_iso_date(2026, 4, 31) is None       # 4월은 30일까지
+    assert _valid_iso_date(2026, 3, 1) == "2026-03-01"
     print("ok")
