@@ -20,6 +20,11 @@ class SleepBlockCalculatorTest {
         return LocalDateTime.of(D, LocalTime.of(h, m));
     }
 
+    /** D+1 기준 시각 — 오늘 근무 종료~다음 근무 시작이 자정을 넘기는 케이스(next가 다음 날짜)용. */
+    private static LocalDateTime t1(int h, int m) {
+        return LocalDateTime.of(D.plusDays(1), LocalTime.of(h, m));
+    }
+
     private static SleepBlockContext ctx(RoutineMode mode, ShiftWindow today, ShiftWindow next, SleepBlock prev) {
         return new SleepBlockContext(mode, D, today, next, COMMUTE, PREP, TARGET, true, 30,
                 RhythmPreference.BALANCED, prev, 1, 1, 0);
@@ -42,7 +47,7 @@ class SleepBlockCalculatorTest {
     void m02_eveningStable() {
         SleepBlock b = SleepBlockCalculator.calculate(ctx(RoutineMode.EVENING,
                 new ShiftWindow(ShiftType.EVENING, null, t(22, 0)),
-                new ShiftWindow(ShiftType.EVENING, t(14, 0), null),
+                new ShiftWindow(ShiftType.EVENING, t1(14, 0), null),
                 null)).block();
         assertThat(b.mainSleepStart().toLocalTime()).isEqualTo(LocalTime.of(22, 30));
         assertThat(b.mainSleepEnd().toLocalTime()).isEqualTo(LocalTime.of(5, 30));
@@ -101,7 +106,7 @@ class SleepBlockCalculatorTest {
     void f01_dayToEvening() {
         SleepBlock b = SleepBlockCalculator.calculate(ctx(RoutineMode.SHIFT_TRANSITION,
                 new ShiftWindow(ShiftType.DAY, null, t(15, 0)),
-                new ShiftWindow(ShiftType.EVENING, t(14, 0), null),
+                new ShiftWindow(ShiftType.EVENING, t1(14, 0), null),
                 null)).block();
         assertThat(b.mainSleepStart().toLocalTime()).isEqualTo(LocalTime.of(15, 30));
         assertThat(b.mainSleepEnd().toLocalTime()).isEqualTo(LocalTime.of(22, 30));
@@ -112,7 +117,7 @@ class SleepBlockCalculatorTest {
     void f02_eveningToNight() {
         SleepBlock b = SleepBlockCalculator.calculate(ctx(RoutineMode.SHIFT_TRANSITION,
                 new ShiftWindow(ShiftType.EVENING, null, t(23, 0)),
-                new ShiftWindow(ShiftType.NIGHT, t(22, 0), null),
+                new ShiftWindow(ShiftType.NIGHT, t1(22, 0), null),
                 null)).block();
         assertThat(b.mainSleepStart().toLocalTime()).isEqualTo(LocalTime.of(23, 30));
         assertThat(b.mainSleepEnd().toLocalTime()).isEqualTo(LocalTime.of(6, 30));
@@ -134,7 +139,7 @@ class SleepBlockCalculatorTest {
     void b01_eveningToDay_deadlineAnchored() {
         SleepBlock b = SleepBlockCalculator.calculate(ctx(RoutineMode.SHIFT_TRANSITION,
                 new ShiftWindow(ShiftType.EVENING, null, t(23, 0)),
-                new ShiftWindow(ShiftType.DAY, t(7, 0), null),
+                new ShiftWindow(ShiftType.DAY, t1(7, 0), null),
                 null)).block();
         assertThat(b.mainSleepStart().toLocalTime()).isEqualTo(LocalTime.of(23, 30));
         assertThat(b.mainSleepEnd().toLocalTime()).isEqualTo(LocalTime.of(6, 10));
