@@ -23,9 +23,8 @@ public class FakeAiScheduleAdapter implements AiScheduleAdapter {
     @Override
     public Optional<ParseScheduleResponse> parseSchedule(ParseScheduleRequest request) {
         return Optional.of(new ParseScheduleResponse(
-                List.of(new ParseScheduleResponse.ShiftTypeDef("DAY", "DAY", "high", "07:00", "15:00")),
-                List.of(new ParseScheduleResponse.ShiftDay("2026-08-17", "DAY")),
-                false
+                List.of(new ParseScheduleResponse.ShiftTypeDef("DAY", "DAY", "07:00", "15:00")),
+                List.of(new ParseScheduleResponse.ShiftDay("2026-08-17", "DAY"))
         ));
     }
 

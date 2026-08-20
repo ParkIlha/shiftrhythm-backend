@@ -14,9 +14,7 @@ class ScheduleReq(BaseModel):
 
 class ShiftTypeDef(BaseModel):
     shiftType: str                # 표에 적힌 코드 그대로 (D, 주간, 1조 ...). shifts 와 잇는 키
-    # AI 가 추론한 의미. confidence 가 low 면 앱이 사용자에게 물어본다.
-    mapped: str = "UNKNOWN"       # DAY | EVENING | NIGHT | OFF | UNKNOWN
-    confidence: str = "low"       # high | medium | low
+    mapped: str = "OFF"           # DAY | EVENING | NIGHT | OFF — AI가 반드시 넷 중 하나로 고른다
     reason: str | None = None     # 판단 근거 한 줄 (사용자에게 보여줄 수 있음)
     startTime: str | None = None  # 표에 시간표(범례) 있으면 채움, 없으면 null → 앱이 나중에 물어봄
     endTime: str | None = None
@@ -28,10 +26,6 @@ class ShiftDay(BaseModel):
 class ScheduleRes(BaseModel):
     shiftTypes: list[ShiftTypeDef]
     shifts: list[ShiftDay]
-    # 모든 shift의 월을 AI도 못 읽고 요청에도 없어서 오늘 날짜로 통째로 추측한 경우 true.
-    # 이땐 shifts[].date의 절대 연/월을 신뢰하지 말고, day 순서(상대 순번)만 신뢰해야 한다 —
-    # 앱이 시작일을 사용자에게 물어서 그 차이만큼 전체를 offset하는 방식으로 보정한다.
-    monthGuessed: bool = False
 
 
 # --- B-2 parse-disruption ---

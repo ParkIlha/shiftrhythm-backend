@@ -63,8 +63,7 @@ public class OnboardingController {
                     + shifts[].shiftType은 근무표에 적힌 코드 그대로다("D", "나이트", "1조"...). 그 코드가
                     + DAY/EVENING/NIGHT/OFF 중 무엇인지는 shiftTypes[]에서 같은 shiftType을 찾아 mapped를 보면 된다.
                     + 달력에 근무유형을 칠할 때도, /api/onboarding/schedule로 확정할 때도 이 mapped 값을 쓴다
-                    + (확정 API는 ShiftType enum만 받는다). confidence가 low면 AI도 확신이 없다는 뜻이라
-                    + 확인 화면에서 사용자에게 물어보는 게 좋다.
+                    + (확정 API는 ShiftType enum만 받는다).
                     + 근무표에 시간표(범례)가 없으면 startTime/endTime은 AI가 추측하지 않고 교대 프리셋
                     + 기본값이 들어간다(3교대 06-14/14-22/22-06, 2교대 08-20/20-08).
                     사진에 여러 명의 행이 있어 AI가 본인 행을 특정하지 못하면 422 { "error": "ROW_LABEL_REQUIRED", "rowLabels": [...], "rowPreviews": [...] }
