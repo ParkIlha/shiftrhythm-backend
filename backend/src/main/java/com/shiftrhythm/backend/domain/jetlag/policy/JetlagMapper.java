@@ -1,6 +1,7 @@
-package com.shiftrhythm.backend.domain.jetlag;
+package com.shiftrhythm.backend.domain.jetlag.policy;
+import com.shiftrhythm.backend.domain.jetlag.*;
 
-import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
+import com.shiftrhythm.backend.domain.schedule.util.SleepTimeMath;
 
 import java.time.LocalTime;
 import java.util.Map;

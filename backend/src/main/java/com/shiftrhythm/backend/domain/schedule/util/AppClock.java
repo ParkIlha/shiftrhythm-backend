@@ -1,4 +1,5 @@
-package com.shiftrhythm.backend.domain.schedule;
+package com.shiftrhythm.backend.domain.schedule.util;
+import com.shiftrhythm.backend.domain.schedule.*;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;

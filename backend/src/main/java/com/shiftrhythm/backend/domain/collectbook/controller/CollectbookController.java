@@ -1,6 +1,8 @@
-package com.shiftrhythm.backend.web;
+package com.shiftrhythm.backend.domain.collectbook.controller;
+import com.shiftrhythm.backend.domain.collectbook.*;
+import com.shiftrhythm.backend.domain.collectbook.service.*;
 
-import com.shiftrhythm.backend.domain.collectbook.CollectbookFacade;
+import com.shiftrhythm.backend.domain.collectbook.service.CollectbookFacade;
 import com.shiftrhythm.backend.domain.collectbook.CollectbookView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

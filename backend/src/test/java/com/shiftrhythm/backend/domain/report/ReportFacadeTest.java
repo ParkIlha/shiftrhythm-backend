@@ -1,5 +1,6 @@
 package com.shiftrhythm.backend.domain.report;
 
+import com.shiftrhythm.backend.domain.report.service.ReportFacade;
 import com.shiftrhythm.backend.domain.checkin.entity.DailyCheckIn;
 import com.shiftrhythm.backend.domain.checkin.repository.DailyCheckInRepository;
 import com.shiftrhythm.backend.domain.routine.MealTimes;

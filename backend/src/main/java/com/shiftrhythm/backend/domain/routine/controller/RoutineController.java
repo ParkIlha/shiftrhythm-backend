@@ -1,9 +1,11 @@
-package com.shiftrhythm.backend.web;
+package com.shiftrhythm.backend.domain.routine.controller;
+import com.shiftrhythm.backend.domain.routine.*;
+import com.shiftrhythm.backend.domain.routine.service.*;
 
-import com.shiftrhythm.backend.domain.routine.ReplanFacade;
-import com.shiftrhythm.backend.domain.routine.RoutineFacade;
+import com.shiftrhythm.backend.domain.routine.service.ReplanFacade;
+import com.shiftrhythm.backend.domain.routine.service.RoutineFacade;
 import com.shiftrhythm.backend.domain.routine.TodayRoutineView;
-import com.shiftrhythm.backend.domain.schedule.AppClock;
+import com.shiftrhythm.backend.domain.schedule.util.AppClock;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -1,9 +1,11 @@
-package com.shiftrhythm.backend.web;
+package com.shiftrhythm.backend.domain.routine.controller;
+import com.shiftrhythm.backend.domain.routine.*;
+import com.shiftrhythm.backend.domain.routine.service.*;
 
 import com.shiftrhythm.backend.domain.ai.AiScheduleAdapter;
 import com.shiftrhythm.backend.domain.ai.dto.ParseScheduleRequest;
 import com.shiftrhythm.backend.domain.ai.dto.ParseScheduleResponse;
-import com.shiftrhythm.backend.domain.routine.OnboardingService;
+import com.shiftrhythm.backend.domain.routine.service.OnboardingService;
 import com.shiftrhythm.backend.domain.routine.ParseFailedException;
 import com.shiftrhythm.backend.domain.routine.ScheduleDayView;
 import com.shiftrhythm.backend.domain.schedule.RhythmPreference;

@@ -1,4 +1,5 @@
-package com.shiftrhythm.backend.domain.report;
+package com.shiftrhythm.backend.domain.report.service;
+import com.shiftrhythm.backend.domain.report.*;
 
 import com.shiftrhythm.backend.domain.checkin.entity.DailyCheckIn;
 import com.shiftrhythm.backend.domain.checkin.repository.DailyCheckInRepository;
@@ -6,7 +7,7 @@ import com.shiftrhythm.backend.domain.routine.ReplanReason;
 import com.shiftrhythm.backend.domain.routine.RoutineNotFoundException;
 import com.shiftrhythm.backend.domain.routine.entity.RoutineResult;
 import com.shiftrhythm.backend.domain.routine.repository.RoutineResultRepository;
-import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
+import com.shiftrhythm.backend.domain.schedule.util.SleepTimeMath;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.web.CurrentUser;
 import org.springframework.stereotype.Service;
