@@ -132,4 +132,23 @@ class AiSleepMealValidatorTest {
         LocalTime result = AiSleepMealValidator.clampMeal(LocalTime.of(19, 0), mb, false);
         assertThat(result).isEqualTo(LocalTime.of(18, 0));
     }
+
+    /**
+     * 회귀 테스트: 실사용 중 발견된 버그 재현. NIGHT처럼 주수면이 이른 시각(07:45)에 끝나고 그 뒤
+     * 오후~저녁(주수면 끝~보조수면 시작 사이)에 두 끼가 배치되는 경우, 그 두 끼가 "오늘 새벽 컷오프"
+     * (mainSleepStart-2h)에 걸려 둘 다 같은 시각으로 뭉개지던 문제. 이 구간의 식사는 "내일" 주수면
+     * 기준 컷오프를 적용해야 한다.
+     */
+    @Test
+    void clampMeal_afternoonMealAfterMainSleep_usesNextDayCutoff_notCollapsedToToday() {
+        SleepBlock sb = new SleepBlock(t(7, 45), t(12, 15), t(19, 15), t(21, 45), null, 60, null, null);
+        MealBlock mb = MealBlockCalculator.calculate(sb); // bigMealCutoff == 05:45 (오늘)
+
+        LocalTime mainMeal1 = AiSleepMealValidator.clampMeal(LocalTime.of(13, 0), mb, true);
+        LocalTime mainMeal2 = AiSleepMealValidator.clampMeal(LocalTime.of(17, 30), mb, true);
+
+        assertThat(mainMeal1).isEqualTo(LocalTime.of(13, 0));
+        assertThat(mainMeal2).isEqualTo(LocalTime.of(17, 30));
+        assertThat(AiSleepMealValidator.mealsCollapsed(mainMeal1, mainMeal2)).isFalse();
+    }
 }
