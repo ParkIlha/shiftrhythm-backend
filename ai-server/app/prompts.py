@@ -124,8 +124,14 @@ SCHEDULE_SYSTEM = GUARDRAIL + (
     "사용자가 지정한 '내 행'만 추출하고 다른 사람 행은 무시하라. "
     "근무코드(shiftType)는 표에 적힌 글자 그대로 써라(D, OF, 주간, 1조 등). 임의로 바꾸거나 정규화하지 마라. "
     "각 코드의 의미는 mapped 에 따로 적어라 — 표 전체(범례, 하단 집계행, 사용 패턴)를 근거로 판단하라. "
-    "확신이 없으면 UNKNOWN + confidence low 로 정직하게 표시하라. "
-    "틀린 매핑은 사용자의 수면 계획을 통째로 망가뜨리므로, 모르는 것을 모른다고 하는 편이 훨씬 낫다. "
+    "mapped는 반드시 DAY/EVENING/NIGHT/OFF 중 하나로 골라라(UNKNOWN 없음) — 백엔드가 이 값으로 "
+    "근무유형별 시작·종료 시각을 확정하는데, 값 자체가 없으면 그 코드가 아예 처리 못 되고 근무표 등록이 "
+    "통째로 실패한다. 확신이 없으면 표의 다른 단서(그 코드의 등장 빈도, 근무/휴무 패턴, 다른 코드와의 "
+    "관계)로 가장 가능성 높은 값을 골라라 — '모르겠다'는 답은 허용되지 않는다. "
+    "틀린 매핑은 사용자의 수면 계획을 망가뜨릴 수 있으므로, 특히 OFF(휴무)로 볼지 근무로 볼지 애매하면 "
+    "OFF 쪽을 우선하라 — 실제로 근무일인데 OFF로 잘못 표시되는 것보다, 실제로 휴무인데 근무로 잘못 "
+    "표시돼 근무 연속 규칙(예: 야간 근무 다음날 주간 근무 금지)을 위반하는 조합이 만들어지는 쪽이 "
+    "훨씬 위험하다. "
     "표에 각 코드의 시간표(범례)가 있으면 startTime/endTime을 채우고, 없으면 비워라(추측 금지). "
     "날짜는 표에 실제로 적힌 값을 그대로 읽어라 — 칸이 몇 번째 열인지가 아니라 '9/1', '9월 1일' 같은 "
     "표기 자체를 읽어서 월(month, 1~12)을 채워라. 표가 두 달에 걸쳐 있으면(예: 8/28~9/3) 칸마다 실제 "
@@ -153,19 +159,14 @@ SCHEDULE_TOOLS = [
                             "shiftType": {"type": "string", "description": "표에 적힌 코드 그대로"},
                             "mapped": {
                                 "type": "string",
-                                "enum": ["DAY", "EVENING", "NIGHT", "OFF", "UNKNOWN"],
-                                "description": "이 코드의 의미. 확신 없으면 UNKNOWN",
-                            },
-                            "confidence": {
-                                "type": "string",
-                                "enum": ["high", "medium", "low"],
-                                "description": "매핑 확신도. UNKNOWN 이면 반드시 low",
+                                "enum": ["DAY", "EVENING", "NIGHT", "OFF"],
+                                "description": "이 코드의 의미. 확신 없어도 가장 가능성 높은 값을 고른다(생략 불가)",
                             },
                             "reason": {"type": "string", "description": "판단 근거 한 줄"},
                             "startTime": {"type": "string", "description": "HH:MM, 표에 있을 때만"},
                             "endTime": {"type": "string", "description": "HH:MM, 표에 있을 때만"},
                         },
-                        "required": ["shiftType", "mapped", "confidence", "reason"],
+                        "required": ["shiftType", "mapped", "reason"],
                     },
                 },
                 "shifts": {
