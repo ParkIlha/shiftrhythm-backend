@@ -67,13 +67,16 @@ SUGGEST_SYSTEM = GUARDRAIL + (
     "\n- 초안에서 크게 벗어나지 마라. 조정은 보통 1시간 이내가 적절하다."
     "\n- 초안보다 수면을 짧게 만들지 마라. 조정할 근거가 없으면 초안 값을 그대로 반환하라."
     "\n- ankerBlock이 있으면 그 구간과 최대한 겹치게 유지하라."
-    "\n- 주요식사(큰 식사)는 bigMealCutoff 이후로 미루지 마라."
-    "\n- nightRestrictionStart~End 는 생체 야간(소화 능력이 가장 낮은 구간)이다. "
-    "이 구간에 배치하지 말아야 하는 건 주요식사뿐이다 — 그 시간에 깨어 근무 중이라면 굶기지 말고 "
-    "subMealTime 으로 가벼운 식사를 넣어라. 야간근무 중 가벼운 식사는 권장된다."
-    "\n- 주요식사와 주수면 시작 사이가 6시간 넘게 벌어지면 그 사이에 subMealTime 을 넣어라."
+    "\n- 식사는 mainMealTime, subMealTime 두 끼 모두 반드시 채워라(생략 불가). "
+    "위계 없는 대등한 두 끼이고 순서도 의미 없다 — 서로 4시간 이상 떨어뜨리기만 해라."
+    "\n- 두 끼 모두 currentSleepBlock(주수면 mainSleepStart~End, 보조수면 supplementarySleepStart~End)과 "
+    "절대 겹치면 안 된다. 두 끼 모두 bigMealCutoff 이전이어야 한다."
+    "\n- nightRestrictionStart~End 는 생체 야간(소화 능력이 가장 낮은 구간)이다. 가능하면 피하되, "
+    "수면 회피·컷오프 때문에 불가피하면 그 안에 배치해도 된다 — 금지가 아니라 권장 회피 구간이다."
+    "\n- 근무시간과 겹치는지는 신경 쓰지 마라. 근무 중 식사는 정상이다."
     "\n- recentNightHunger 가 높으면(평균 4 이상) snackNeeded=true 로 두고 "
-    "취침 1시간 전쯤으로 snackTime 을 잡아라. 그렇지 않으면 굳이 넣지 마라."
+    "주수면 시작 1시간 전쯤으로 snackTime 을 잡아라. 그렇지 않으면 굳이 넣지 마라. "
+    "snackTime 도 수면 구간(보조수면 포함)과 겹치면 안 된다. 대신 bigMealCutoff 는 적용하지 않는다."
     "\n- reason은 사용자에게 보일 한국어 한 문장으로 자연스럽게."
 )
 SUGGEST_TOOLS = [
@@ -98,13 +101,13 @@ SUGGEST_TOOLS = [
                 "meal": {
                     "type": "object",
                     "properties": {
-                        "mainMealTime": {"type": "string", "description": "HH:MM, 주요 식사"},
-                        "subMealTime": {"type": "string", "description": "HH:MM, 보조 식사. 불필요하면 생략"},
+                        "mainMealTime": {"type": "string", "description": "HH:MM, 첫 번째 끼"},
+                        "subMealTime": {"type": "string", "description": "HH:MM, 두 번째 끼. 첫 번째와 대등하며 생략 불가"},
                         "snackNeeded": {"type": "boolean"},
                         "snackTime": {"type": "string", "description": "HH:MM. snackNeeded 일 때만"},
                         "reason": {"type": "string"},
                     },
-                    "required": ["mainMealTime", "snackNeeded", "reason"],
+                    "required": ["mainMealTime", "subMealTime", "snackNeeded", "reason"],
                 },
             },
             "required": ["sleep", "meal"],

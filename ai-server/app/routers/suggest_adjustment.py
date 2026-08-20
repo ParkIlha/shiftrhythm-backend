@@ -19,17 +19,38 @@ def hhmm(value, default=None):
 
 
 MAIN_MEAL_BEFORE_CUTOFF_MINUTES = 90
+SECOND_MEAL_GAP_MINUTES = 300
+
+
+def _to_min(hm: str) -> int:
+    h, m = hm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def _to_hhmm(total: int) -> str:
+    return f"{total // 60 % 24:02d}:{total % 60:02d}"
 
 
 def _safe_main_meal(mc) -> str:
-    """AI 값을 쓸 수 없을 때의 주요식사 시각.
+    """AI 값을 쓸 수 없을 때의 첫 번째 끼 시각.
 
     bigMealCutoff 는 "이 시각 이후 금지"인 경계선이라 그대로 추천값으로 쓰면 식사가 취침에 딱 붙는다.
-    90분 앞으로 당길 뿐, 생체 야간 구간 회피는 백엔드 clampMainMeal 이 어차피 다시 하므로 여기선 안 한다.
+    90분 앞으로 당길 뿐, 생체 야간 구간 회피는 백엔드 clampMeal 이 어차피 다시 하므로 여기선 안 한다.
     """
-    h, m = mc.bigMealCutoff.split(":")
-    total = (int(h) * 60 + int(m) - MAIN_MEAL_BEFORE_CUTOFF_MINUTES) % 1440
-    return f"{total // 60:02d}:{total % 60:02d}"
+    return _to_hhmm(_to_min(mc.bigMealCutoff) - MAIN_MEAL_BEFORE_CUTOFF_MINUTES)
+
+
+def _safe_second_meal(req: SuggestReq) -> str:
+    """AI 값을 쓸 수 없을 때의 두 번째 끼 시각 — 두 끼는 둘 다 필수라 폴백에도 반드시 있어야 한다.
+
+    첫 끼의 5시간 전. 그러면 기상 전(=수면 중)으로 밀리는 짧은 각성 구간에서는 기상 1시간 후로.
+    """
+    first = _to_min(_safe_main_meal(req.mealConstraints))
+    wake = _to_min(req.currentSleepBlock.mainSleepEnd)
+    awake_before_first = (first - wake) % 1440
+    if awake_before_first >= SECOND_MEAL_GAP_MINUTES + 60:
+        return _to_hhmm(first - SECOND_MEAL_GAP_MINUTES)
+    return _to_hhmm(wake + 60)
 
 
 def _draft(req: SuggestReq, reason: str) -> SuggestRes:
@@ -44,7 +65,11 @@ def _draft(req: SuggestReq, reason: str) -> SuggestRes:
             napMinutes=c.napMinutes,
             reason=reason,
         ),
-        meal=MealSuggest(mainMealTime=_safe_main_meal(req.mealConstraints), reason=reason),
+        meal=MealSuggest(
+            mainMealTime=_safe_main_meal(req.mealConstraints),
+            subMealTime=_safe_second_meal(req),
+            reason=reason,
+        ),
     )
 
 
@@ -81,7 +106,7 @@ def suggest_adjustment(req: SuggestReq):
         ),
         meal=MealSuggest(
             mainMealTime=main_meal,
-            subMealTime=hhmm(meal.get("subMealTime")),
+            subMealTime=hhmm(meal.get("subMealTime"), _safe_second_meal(req)),
             snackNeeded=bool(meal.get("snackNeeded")) and snack_time is not None,
             snackTime=snack_time,
             reason=meal.get("reason") or FALLBACK_REASON,
@@ -112,4 +137,13 @@ if __name__ == "__main__":
     # 컷오프 경계선(06:00)에 딱 붙이지 않고 90분 앞으로 — 자정 넘김 포함
     assert d.meal.mainMealTime == "04:30" and d.meal.snackNeeded is False
     assert _safe_main_meal(SimpleNamespace(bigMealCutoff="01:00")) == "23:30"
+
+    # 두 끼는 둘 다 필수 — 폴백도 두 번째 끼를 채운다(첫 끼 5시간 전, 기상 12:00 이후)
+    assert d.meal.subMealTime == "23:30"
+    # 각성 구간이 짧아 5시간 전이 수면 중으로 밀리면 기상 1시간 후로
+    short = req.model_copy(update={
+        "currentSleepBlock": req.currentSleepBlock.model_copy(update={"mainSleepEnd": "08:00"}),
+        "mealConstraints": req.mealConstraints.model_copy(update={"bigMealCutoff": "12:00"}),
+    })
+    assert _safe_main_meal(short.mealConstraints) == "10:30" and _safe_second_meal(short) == "09:00"
     print("ok")
