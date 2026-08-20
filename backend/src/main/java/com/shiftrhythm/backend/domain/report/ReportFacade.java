@@ -88,8 +88,8 @@ public class ReportFacade {
                 .orElse(current);
 
         DailyReportView.PlanVsActual sleep = new DailyReportView.PlanVsActual(
-                plan.getMode(), plan.getSleepStart(), plan.getSleepEnd(), sleepMinutes(plan),
-                current.getMode(), current.getSleepStart(), current.getSleepEnd(), sleepMinutes(current)
+                plan.getMode(), plan.getSleepStart().toLocalTime(), plan.getSleepEnd().toLocalTime(), sleepMinutes(plan),
+                current.getMode(), current.getSleepStart().toLocalTime(), current.getSleepEnd().toLocalTime(), sleepMinutes(current)
         );
 
         List<RoutineResult> versions = routineResultRepository.findByUserProfileIdAndDateOrderByVersionAsc(userId, date);
@@ -99,8 +99,8 @@ public class ReportFacade {
             RoutineResult after = versions.get(i);
             replanLog.add(new DailyReportView.ReplanLogEntry(
                     after.getVersion(), after.getReplanReason(), after.getAiReason(),
-                    before.getSleepStart(), after.getSleepStart(),
-                    before.getSleepEnd(), after.getSleepEnd()
+                    before.getSleepStart().toLocalTime(), after.getSleepStart().toLocalTime(),
+                    before.getSleepEnd().toLocalTime(), after.getSleepEnd().toLocalTime()
             ));
         }
 

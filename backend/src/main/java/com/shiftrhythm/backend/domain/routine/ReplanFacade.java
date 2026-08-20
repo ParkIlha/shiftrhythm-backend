@@ -13,6 +13,7 @@ import com.shiftrhythm.backend.domain.schedule.MealBlock;
 import com.shiftrhythm.backend.domain.schedule.RoutineMode;
 import com.shiftrhythm.backend.domain.schedule.SleepBlock;
 import com.shiftrhythm.backend.domain.schedule.SleepTimeMath;
+import com.shiftrhythm.backend.domain.schedule.SleepWindow;
 import com.shiftrhythm.backend.domain.schedule.entity.UserProfile;
 import com.shiftrhythm.backend.domain.schedule.repository.UserProfileRepository;
 import com.shiftrhythm.backend.web.CurrentUser;
@@ -66,7 +67,7 @@ public class ReplanFacade {
     private static final java.util.Set<String> SHIFT_BLOCK_CHANGING_EVENT_TYPES = java.util.Set.of("SHIFT_END_DELAY", "SHIFT_ADDED");
 
     private record CachedPreview(LocalDate date, RoutineMode mode, SleepBlock finalSleep, MealTimes finalMeal,
-                                  LocalTime adjustedShiftEndTime,
+                                  LocalDateTime adjustedShiftEndTime,
                                   ParseDisruptionResponse disruption, SuggestAdjustmentResponse suggestion,
                                   Instant expiresAt) {
     }
@@ -93,7 +94,7 @@ public class ReplanFacade {
         ParseDisruptionRequest.ShiftContext ctx = new ParseDisruptionRequest.ShiftContext(
                 baseline.today().type().name(),
                 baseline.next() == null ? null : baseline.next().type().name(),
-                baseline.today().endTime() == null ? null : baseline.today().endTime().format(TIME_FORMAT)
+                baseline.today().endTime() == null ? null : baseline.today().endTime().toLocalTime().format(TIME_FORMAT)
         );
         ParseDisruptionResponse disruption = aiScheduleAdapter.parseDisruption(new ParseDisruptionRequest(rawText, ctx))
                 .orElseThrow(ParseFailedException::new);
@@ -106,7 +107,7 @@ public class ReplanFacade {
         SleepBlock finalSleep = resolveFinalSleep(recomputed, suggestion);
         MealTimes finalMeal = resolveFinalMeal(recomputed.mealBlock(), suggestion, finalSleep);
 
-        LocalTime adjustedShiftEndTime = SHIFT_BLOCK_CHANGING_EVENT_TYPES.contains(disruption.eventType())
+        LocalDateTime adjustedShiftEndTime = SHIFT_BLOCK_CHANGING_EVENT_TYPES.contains(disruption.eventType())
                 ? recomputed.today().endTime()
                 : null;
 
@@ -114,8 +115,8 @@ public class ReplanFacade {
         previews.put(previewId, new CachedPreview(date, recomputed.mode(), finalSleep, finalMeal, adjustedShiftEndTime,
                 disruption, suggestion, Instant.now().plus(TTL_MINUTES, ChronoUnit.MINUTES)));
 
-        RoutineSnapshot before = snapshotOf(current.getMode().name(), current.getSleepStart(), current.getSleepEnd(), current.getMealTimes());
-        RoutineSnapshot after = snapshotOf(recomputed.mode().name(), finalSleep.mainSleepStart(), finalSleep.mainSleepEnd(), finalMeal);
+        RoutineSnapshot before = snapshotOf(current.getMode().name(), current.getSleepStart().toLocalTime(), current.getSleepEnd().toLocalTime(), current.getMealTimes());
+        RoutineSnapshot after = snapshotOf(recomputed.mode().name(), finalSleep.mainSleepStart().toLocalTime(), finalSleep.mainSleepEnd().toLocalTime(), finalMeal);
         String aiReason = suggestion == null ? null : (suggestion.sleep().reason() + " / " + suggestion.meal().reason());
 
         return new PreviewResult(previewId, disruption.eventType(), disruption.reasonCategory(), before, after, aiReason);
@@ -170,16 +171,16 @@ public class ReplanFacade {
     private SuggestAdjustmentRequest buildSuggestRequest(UserProfile profile, RoutineComputation computation) {
         SleepBlock sb = computation.sleepBlock();
         SuggestAdjustmentRequest.SleepWindow windowDto = new SuggestAdjustmentRequest.SleepWindow(
-                computation.sleepWindow().earliestSleepStart().format(TIME_FORMAT),
-                computation.sleepWindow().latestSleepEnd().format(TIME_FORMAT));
+                computation.sleepWindow().earliestSleepStart().toLocalTime().format(TIME_FORMAT),
+                computation.sleepWindow().latestSleepEnd().toLocalTime().format(TIME_FORMAT));
         SuggestAdjustmentRequest.CurrentSleepBlock currentBlockDto = new SuggestAdjustmentRequest.CurrentSleepBlock(
-                sb.mainSleepStart().format(TIME_FORMAT),
-                sb.mainSleepEnd().format(TIME_FORMAT),
-                sb.supplementarySleepStart() == null ? null : sb.supplementarySleepStart().format(TIME_FORMAT),
-                sb.supplementarySleepEnd() == null ? null : sb.supplementarySleepEnd().format(TIME_FORMAT),
+                sb.mainSleepStart().toLocalTime().format(TIME_FORMAT),
+                sb.mainSleepEnd().toLocalTime().format(TIME_FORMAT),
+                sb.supplementarySleepStart() == null ? null : sb.supplementarySleepStart().toLocalTime().format(TIME_FORMAT),
+                sb.supplementarySleepEnd() == null ? null : sb.supplementarySleepEnd().toLocalTime().format(TIME_FORMAT),
                 sb.napMinutes(),
-                sb.ankerBlockStart() == null ? null : sb.ankerBlockStart().format(TIME_FORMAT),
-                sb.ankerBlockEnd() == null ? null : sb.ankerBlockEnd().format(TIME_FORMAT)
+                sb.ankerBlockStart() == null ? null : sb.ankerBlockStart().toLocalTime().format(TIME_FORMAT),
+                sb.ankerBlockEnd() == null ? null : sb.ankerBlockEnd().toLocalTime().format(TIME_FORMAT)
         );
         SuggestAdjustmentRequest.MealConstraints mealConstraintsDto = new SuggestAdjustmentRequest.MealConstraints(
                 computation.mealBlock().bigMealCutoff().format(TIME_FORMAT),
@@ -196,11 +197,14 @@ public class ReplanFacade {
         if (suggestion == null) {
             return computation.sleepBlock();
         }
+        SleepWindow window = computation.sleepWindow();
         SleepBlock proposed = new SleepBlock(
-                LocalTime.parse(suggestion.sleep().mainSleepStart()),
-                LocalTime.parse(suggestion.sleep().mainSleepEnd()),
-                suggestion.sleep().supplementarySleepStart() == null ? null : LocalTime.parse(suggestion.sleep().supplementarySleepStart()),
-                suggestion.sleep().supplementarySleepEnd() == null ? null : LocalTime.parse(suggestion.sleep().supplementarySleepEnd()),
+                SleepTimeMath.anchorWithinWindow(LocalTime.parse(suggestion.sleep().mainSleepStart()), window.earliestSleepStart(), window.latestSleepEnd()),
+                SleepTimeMath.anchorWithinWindow(LocalTime.parse(suggestion.sleep().mainSleepEnd()), window.earliestSleepStart(), window.latestSleepEnd()),
+                suggestion.sleep().supplementarySleepStart() == null ? null
+                        : SleepTimeMath.anchorWithinWindow(LocalTime.parse(suggestion.sleep().supplementarySleepStart()), window.earliestSleepStart(), window.latestSleepEnd()),
+                suggestion.sleep().supplementarySleepEnd() == null ? null
+                        : SleepTimeMath.anchorWithinWindow(LocalTime.parse(suggestion.sleep().supplementarySleepEnd()), window.earliestSleepStart(), window.latestSleepEnd()),
                 suggestion.sleep().napMinutes(),
                 computation.sleepBlock().adjustToleranceMinutes(),
                 computation.sleepBlock().ankerBlockStart(),
@@ -226,9 +230,9 @@ public class ReplanFacade {
                 : null;
         if (snackTime != null) {
             long toSnack = SleepTimeMath.minutesBetween(mealBlock.nightRestrictionEnd(), snackTime);
-            long toSleepStart = SleepTimeMath.minutesBetween(mealBlock.nightRestrictionEnd(), finalSleep.mainSleepStart());
+            long toSleepStart = SleepTimeMath.minutesBetween(mealBlock.nightRestrictionEnd(), finalSleep.mainSleepStart().toLocalTime());
             if (toSnack > toSleepStart) {
-                snackTime = finalSleep.mainSleepStart().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
+                snackTime = finalSleep.mainSleepStart().toLocalTime().minusMinutes(SNACK_BEFORE_SLEEP_MINUTES);
             }
         }
         return new MealTimes(mainMeal, subMeal, snackTime, mealBlock.bigMealCutoff(), mealBlock.nightRestrictionStart(), mealBlock.nightRestrictionEnd(), mealBlock.caffeineCutoff());

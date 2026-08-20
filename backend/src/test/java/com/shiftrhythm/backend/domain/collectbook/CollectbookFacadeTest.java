@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
 
@@ -31,8 +32,9 @@ class CollectbookFacadeTest {
     }
 
     private void save(LocalDate date, LocalTime wakeTime) {
+        LocalDateTime wake = LocalDateTime.of(date, wakeTime);
         routineResultRepository.save(new RoutineResult(UserProfile.SINGLETON_ID, date, 1, true, null, RoutineMode.DAY,
-                wakeTime.minusHours(7), wakeTime, null, null, null, mealTimes()));
+                wake.minusHours(7), wake, null, null, null, mealTimes()));
     }
 
     @Test

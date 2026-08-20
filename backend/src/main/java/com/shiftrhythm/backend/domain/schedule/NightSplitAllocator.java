@@ -1,6 +1,6 @@
 package com.shiftrhythm.backend.domain.schedule;
 
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 
 /**
  * NIGHT 근무를 마친 이후 다음 근무 전까지의 수면을 주수면/보조수면으로 배분한다.
@@ -14,8 +14,8 @@ public final class NightSplitAllocator {
     }
 
     public static SleepBlock allocate(
-            LocalTime windowStart,
-            LocalTime windowEnd,
+            LocalDateTime windowStart,
+            LocalDateTime windowEnd,
             int targetSleepMinutes,
             boolean napAvailable,
             Integer napAvailableMinutes
@@ -45,11 +45,11 @@ public final class NightSplitAllocator {
             napMinutes = Math.min(shortage, cap);
         }
 
-        LocalTime mainSleepStart = windowStart;
-        LocalTime mainSleepEnd = windowStart.plusMinutes(mainSleep);
+        LocalDateTime mainSleepStart = windowStart;
+        LocalDateTime mainSleepEnd = windowStart.plusMinutes(mainSleep);
 
-        LocalTime supplementaryStart = null;
-        LocalTime supplementaryEnd = null;
+        LocalDateTime supplementaryStart = null;
+        LocalDateTime supplementaryEnd = null;
         if (supplementarySleep > 0) {
             supplementaryEnd = windowEnd;
             supplementaryStart = windowEnd.minusMinutes(supplementarySleep);

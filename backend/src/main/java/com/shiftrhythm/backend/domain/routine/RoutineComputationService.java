@@ -23,6 +23,7 @@ import com.shiftrhythm.backend.web.CurrentUser;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -101,14 +102,14 @@ public class RoutineComputationService {
         int recentDeficit = computeRecentSleepDeficitMinutes(userId, date, profile.getTargetSleepMinutes());
 
         SleepBlockContext ctx = new SleepBlockContext(
-                mode, today, next,
+                mode, date, today, next,
                 profile.getCommuteMinutes(), profile.getPrepMinutes(), profile.getTargetSleepMinutes(),
                 profile.isNapAvailable(), profile.getNapAvailableMinutes(), profile.getRhythmPreference(),
                 prevSleepBlock, offStreak.index(), offStreak.total(), recentDeficit
         );
 
         SleepBlockResult result = SleepBlockCalculator.calculate(ctx);
-        var mealBlock = MealBlockCalculator.calculate(result.block().mainSleepStart());
+        var mealBlock = MealBlockCalculator.calculate(result.block().mainSleepStart().toLocalTime());
 
         return new RoutineComputation(date, mode, modeReason, today, next, result.block(), result.window(), mealBlock, recentDeficit);
     }
@@ -147,7 +148,13 @@ public class RoutineComputationService {
                 end = def.getDefaultEndTime();
             }
         }
-        return new ShiftWindow(shift.getShiftType(), start, end);
+        LocalDate date = shift.getDate();
+        LocalDateTime startDateTime = LocalDateTime.of(date, start);
+        // 자정을 넘기는 근무(예: 22:00~06:00)는 종료시각이 다음 날짜에 속한다.
+        LocalDateTime endDateTime = end.isBefore(start) || end.equals(start)
+                ? LocalDateTime.of(date.plusDays(1), end)
+                : LocalDateTime.of(date, end);
+        return new ShiftWindow(shift.getShiftType(), startDateTime, endDateTime);
     }
 
     private static SleepBlock toSleepBlock(RoutineResult r) {

@@ -25,6 +25,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Optional;
 
@@ -81,7 +82,8 @@ class RoutineFacadeAiFallbackTest {
         MealTimes mealTimes = new MealTimes(LocalTime.of(7, 0), null, null,
                 LocalTime.of(21, 0), LocalTime.of(0, 0), LocalTime.of(6, 0), LocalTime.of(18, 0));
         original = new RoutineResult(CurrentUser.id(), DATE, 1, true, null, RoutineMode.DAY,
-                LocalTime.of(23, 0), LocalTime.of(6, 30), null, null, null, mealTimes);
+                LocalDateTime.of(DATE, LocalTime.of(23, 0)), LocalDateTime.of(DATE.plusDays(1), LocalTime.of(6, 30)),
+                null, null, null, mealTimes);
         routineResultRepository.save(original);
 
         DailyCheckIn checkIn = new DailyCheckIn(CurrentUser.id(), DATE);
@@ -102,8 +104,8 @@ class RoutineFacadeAiFallbackTest {
         assertThat(view.wasJustPersonalized()).isFalse();
         RoutineResult stillCurrent = routineResultRepository
                 .findByUserProfileIdAndDateAndIsCurrentTrue(CurrentUser.id(), DATE).orElseThrow();
-        assertThat(stillCurrent.getSleepStart()).isEqualTo(LocalTime.of(23, 0));
-        assertThat(stillCurrent.getSleepEnd()).isEqualTo(LocalTime.of(6, 30));
+        assertThat(stillCurrent.getSleepStart().toLocalTime()).isEqualTo(LocalTime.of(23, 0));
+        assertThat(stillCurrent.getSleepEnd().toLocalTime()).isEqualTo(LocalTime.of(6, 30));
     }
 
     @Test

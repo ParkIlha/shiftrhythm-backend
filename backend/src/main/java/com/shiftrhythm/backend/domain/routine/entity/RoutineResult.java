@@ -19,7 +19,6 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 
 /**
  * append-only 버전 구조. 재설계마다 새 row(version+1)를 만들고 is_current를 옮긴다.
@@ -45,14 +44,14 @@ public class RoutineResult {
     @Enumerated(EnumType.STRING)
     private RoutineMode mode;
 
-    private LocalTime sleepStart;
-    private LocalTime sleepEnd;
-    private LocalTime supplementarySleepStart;
-    private LocalTime supplementarySleepEnd;
+    private LocalDateTime sleepStart;
+    private LocalDateTime sleepEnd;
+    private LocalDateTime supplementarySleepStart;
+    private LocalDateTime supplementarySleepEnd;
     private Integer napMinutes;
 
     /** 재설계로 실제 근무 종료시각이 바뀐 경우에만 채워진다(SHIFT_END_DELAY/SHIFT_ADDED). 그 외엔 null — 원본 근무표 시각을 그대로 쓴다. */
-    private LocalTime adjustedShiftEndTime;
+    private LocalDateTime adjustedShiftEndTime;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
@@ -65,8 +64,8 @@ public class RoutineResult {
 
     public RoutineResult(Long userProfileId, LocalDate date, int version, boolean isCurrent,
                           ReplanReason replanReason, RoutineMode mode,
-                          LocalTime sleepStart, LocalTime sleepEnd,
-                          LocalTime supplementarySleepStart, LocalTime supplementarySleepEnd,
+                          LocalDateTime sleepStart, LocalDateTime sleepEnd,
+                          LocalDateTime supplementarySleepStart, LocalDateTime supplementarySleepEnd,
                           Integer napMinutes, MealTimes mealTimes) {
         this.userProfileId = userProfileId;
         this.date = date;

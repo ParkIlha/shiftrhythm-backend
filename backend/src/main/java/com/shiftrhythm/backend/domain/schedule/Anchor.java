@@ -1,6 +1,6 @@
 package com.shiftrhythm.backend.domain.schedule;
 
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 
-public record Anchor(LocalTime start, LocalTime end) {
+public record Anchor(LocalDateTime start, LocalDateTime end) {
 }
