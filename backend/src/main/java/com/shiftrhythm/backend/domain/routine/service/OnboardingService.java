@@ -199,33 +199,24 @@ public class OnboardingService {
     }
 
     /**
-     * 이미 등록된 근무표의 상대적 패턴(요일 순서, 근무유형)은 그대로 두고 절대 날짜만 통째로 밀어서
-     * 재등록한다. "오늘이 근무표 범위 밖이라 저장이 막힌" 상황(monthGuessed 여부와 무관하게 항상 사용
-     * 가능)에서, 근무표를 처음부터 다시 입력할 필요 없이 새 시작일 하나만 골라서 고칠 수 있게 한다.
+     * shifts의 상대적 패턴(순서, 근무유형)은 그대로 두고 절대 날짜만 newStartDate부터 다시 배치한
+     * 새 리스트를 계산한다. DB 접근 없는 순수 계산 — 온보딩 파싱 검토 단계(오늘이 빠진 근무표를
+     * 최초 등록하기 "전"에 시작일을 고르는 화면)에서 쓴다.
      *
-     * shiftTypeDefaults(근무유형별 기본 시각)는 기존 등록값을 그대로 재사용한다 — 프론트가 다시 보낼
-     * 필요 없다. 개별 날짜에 지정했던 시각 override는 registerSchedule의 기존 동작과 동일하게
-     * 초기화된다(전체 재등록이라 원래도 override가 안 남는다).
+     * 이미 저장된 근무표가 시간이 지나 범위를 벗어난 경우(홈 화면)도 같은 흐름으로 고친다 —
+     * GET /schedule로 기존 값을 읽어와 이 메서드로 재배치한 뒤 registerSchedule(POST /schedule)로
+     * 재등록하면 된다. 별도의 "저장된 근무표 전용" 엔드포인트를 두지 않고 이 순수 계산 하나로
+     * 저장 전/후 두 시나리오를 동일하게 처리한다.
      */
-    @Transactional
-    public void shiftScheduleStartDate(LocalDate newStartDate) {
-        Long userId = CurrentUser.id();
-        List<Shift> existing = shiftRepository.findByUserProfileIdOrderByDateAsc(userId);
-        if (existing.isEmpty()) {
-            throw new IllegalStateException("먼저 근무표를 등록해야 합니다");
+    public static List<ShiftInput> anchorShiftsToStartDate(List<ShiftInput> shifts, LocalDate newStartDate) {
+        if (shifts.isEmpty()) {
+            return shifts;
         }
-
-        LocalDate currentStart = existing.get(0).getDate();
+        LocalDate currentStart = shifts.stream().map(ShiftInput::date).min(LocalDate::compareTo).orElseThrow();
         long offsetDays = java.time.temporal.ChronoUnit.DAYS.between(currentStart, newStartDate);
-
-        List<ShiftTypeDefaultInput> defaults = shiftTypeDefaultRepository.findByUserProfileId(userId).stream()
-                .map(d -> new ShiftTypeDefaultInput(d.getShiftType(), d.getDefaultStartTime(), d.getDefaultEndTime()))
+        return shifts.stream()
+                .map(s -> new ShiftInput(s.date().plusDays(offsetDays), s.shiftType()))
                 .toList();
-        List<ShiftInput> shiftedShifts = existing.stream()
-                .map(s -> new ShiftInput(s.getDate().plusDays(offsetDays), s.getShiftType()))
-                .toList();
-
-        registerSchedule(defaults, shiftedShifts);
     }
 
     /** 등록된 근무표 전체 조회. 시각 override가 없는 날은 근무유형의 기본 시각을 대신 채워서 내려준다. */

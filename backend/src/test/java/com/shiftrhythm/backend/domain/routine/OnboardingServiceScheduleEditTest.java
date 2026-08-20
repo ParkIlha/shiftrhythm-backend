@@ -170,12 +170,21 @@ class OnboardingServiceScheduleEditTest {
     }
 
     @Test
-    void shiftScheduleStartDate_movesAllDatesByOffsetAndKeepsRelativePattern() {
-        // setUp에서 D0/D0+1/D0+2(전부 DAY)가 등록돼있다. 시작일을 하루 앞당기면 요일 패턴(DAY 3연속)은
-        // 그대로 유지한 채 절대 날짜만 D0-1/D0/D0+1로 밀려야 하고, 오늘(D0)은 둘째 날로 여전히 포함된다.
+    void anchorShiftsToStartDate_thenReRegister_movesAllDatesAndKeepsRelativePattern() {
+        // setUp에서 D0/D0+1/D0+2(전부 DAY)가 등록돼있다. 홈 화면에서 이미 등록된 근무표를 고치는 흐름을
+        // 그대로 재현: GET으로 기존 값을 읽어와 anchorShiftsToStartDate로 재배치한 뒤 registerSchedule로
+        // 재등록한다. 시작일을 하루 앞당기면 요일 패턴(DAY 3연속)은 그대로 유지한 채 절대 날짜만
+        // D0-1/D0/D0+1로 밀려야 하고, 오늘(D0)은 둘째 날로 여전히 포함된다.
         LocalDate newStart = D0.minusDays(1);
 
-        onboardingService.shiftScheduleStartDate(newStart);
+        List<OnboardingService.ShiftInput> existing = onboardingService.getSchedule().stream()
+                .map(v -> new OnboardingService.ShiftInput(v.date(), v.shiftType()))
+                .toList();
+        List<OnboardingService.ShiftInput> anchored = OnboardingService.anchorShiftsToStartDate(existing, newStart);
+        onboardingService.registerSchedule(
+                List.of(new OnboardingService.ShiftTypeDefaultInput(ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0))),
+                anchored
+        );
 
         List<ScheduleDayView> views = onboardingService.getSchedule();
         assertThat(views).extracting(ScheduleDayView::date)
@@ -189,9 +198,16 @@ class OnboardingServiceScheduleEditTest {
     }
 
     @Test
-    void shiftScheduleStartDate_toRangeMissingToday_isRejected() {
-        // 시작일을 수정해도 결과 범위에 오늘이 안 들어가면 registerSchedule과 동일하게 거부돼야 한다.
-        assertThatThrownBy(() -> onboardingService.shiftScheduleStartDate(D0.plusDays(5)))
-                .isInstanceOf(ScheduleMissingTodayException.class);
+    void anchorShiftsToStartDate_toRangeMissingToday_isRejectedOnReRegister() {
+        // 시작일을 수정해도 결과 범위에 오늘이 안 들어가면 registerSchedule이 그대로 거부해야 한다.
+        List<OnboardingService.ShiftInput> existing = onboardingService.getSchedule().stream()
+                .map(v -> new OnboardingService.ShiftInput(v.date(), v.shiftType()))
+                .toList();
+        List<OnboardingService.ShiftInput> anchored = OnboardingService.anchorShiftsToStartDate(existing, D0.plusDays(5));
+
+        assertThatThrownBy(() -> onboardingService.registerSchedule(
+                List.of(new OnboardingService.ShiftTypeDefaultInput(ShiftType.DAY, LocalTime.of(9, 0), LocalTime.of(18, 0))),
+                anchored
+        )).isInstanceOf(ScheduleMissingTodayException.class);
     }
 }

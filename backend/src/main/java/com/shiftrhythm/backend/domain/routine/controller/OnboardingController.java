@@ -202,29 +202,44 @@ public class OnboardingController {
         return onboardingService.getSchedule();
     }
 
-    public record ShiftStartDateRequest(
-            @Schema(description = "근무표의 새 시작일. 기존 근무표의 상대 패턴(요일 순서, 근무유형)은 그대로 두고 이 날짜부터 다시 배치된다.")
+    public record AnchorStartDateRequest(
+            @Schema(description = "/schedule/parse가 돌려준(또는 사용자가 화면에서 검토 중인) 날짜별 근무 목록. "
+                    + "아직 서버에 저장되지 않은, 확정 전 상태를 그대로 담아 보낸다.")
+            @NotNull List<ShiftDto> shifts,
+            @Schema(description = "사용자가 고른 새 시작일(오늘을 포함하도록). shifts의 상대적 순서/근무유형은 그대로 두고 이 날짜부터 다시 배치한다.")
             @NotNull LocalDate newStartDate
     ) {
     }
 
-    @Operation(
-            summary = "근무표 시작일 수정",
-            description = """
-                    이미 등록된 근무표의 요일 패턴/근무유형은 그대로 두고, 절대 날짜만 newStartDate부터
-                    다시 배치한다. 근무표를 사진 다시 찍어 올리거나 처음부터 재등록할 필요 없이, "오늘이
-                    범위 밖이라 저장이 막힌" 경우(SCHEDULE_MISSING_TODAY) 시작일 하나만 골라 고칠 때 쓴다.
-                    monthGuessed 여부와 무관하게 언제든 호출 가능하다.
+    public record AnchorStartDateResponse(List<ShiftDto> shifts) {
+    }
 
-                    내부적으로 POST /api/onboarding/schedule와 동일한 파이프라인을 타므로, 새 범위에도
-                    오늘이 안 들어가면 똑같이 422(SCHEDULE_MISSING_TODAY)로 거부된다. 개별 날짜에 지정했던
-                    시각 override는 초기화된다(POST와 동일한 전체 재등록이라서).
+    @Operation(
+            summary = "근무표 시작일 보정 (순수 계산, 저장 안 함)",
+            description = """
+                    파싱된(또는 이미 등록된) 근무표에 오늘이 포함되지 않을 때 사용자가 고른 시작일로
+                    날짜를 다시 배치해서 계산만 해주는 API — DB에 아무것도 저장하지 않는다.
+
+                    shifts의 상대적 패턴(순서, 근무유형)은 그대로 두고 날짜만 newStartDate부터 다시
+                    배치해서 돌려준다. 프론트는 이 응답의 shifts를 그대로(또는 더 검토/수정한 뒤)
+                    POST /api/onboarding/schedule에 최종 등록으로 보내면 된다.
+
+                    두 시나리오 모두 이 엔드포인트 하나로 처리한다:
+                    - 온보딩 파싱 직후(아직 저장 전): shifts에 /schedule/parse 응답을 그대로 담아 호출
+                    - 홈 화면에서 이미 등록된 근무표가 오늘을 벗어난 경우: 먼저 GET /schedule로 기존
+                      값을 읽어와 shifts에 담아 호출 → 결과를 POST /schedule로 재등록
                     """
     )
-    @PatchMapping("/api/onboarding/schedule/start-date")
-    public OkResponse shiftStartDate(@Valid @RequestBody ShiftStartDateRequest request) {
-        onboardingService.shiftScheduleStartDate(request.newStartDate());
-        return new OkResponse(true);
+    @PostMapping("/api/onboarding/schedule/anchor-start-date")
+    public AnchorStartDateResponse anchorStartDate(@Valid @RequestBody AnchorStartDateRequest request) {
+        List<OnboardingService.ShiftInput> shifts = request.shifts().stream()
+                .map(s -> new OnboardingService.ShiftInput(s.date(), s.shiftType()))
+                .toList();
+        List<OnboardingService.ShiftInput> anchored = OnboardingService.anchorShiftsToStartDate(shifts, request.newStartDate());
+        List<ShiftDto> result = anchored.stream()
+                .map(s -> new ShiftDto(s.date(), s.shiftType()))
+                .toList();
+        return new AnchorStartDateResponse(result);
     }
 
     public record EditShiftRequest(
