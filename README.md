@@ -8,7 +8,7 @@
 
 멋쟁이사자처럼 14th 중앙해커톤 · 팀 왕사자
 
-[Frontend Repo](https://github.com/jeehyung0922-lab/lion) · [API Contract](docs/api-contract.md) · [배포 메모](docs/deployment.md)
+[Frontend Repo](https://github.com/jeehyung0922-lab/lion)
 
 </div>
 
@@ -157,7 +157,7 @@ shiftrhythm-backend/
 │       └── web/             # 공통 예외 처리
 ├── ai-server/               # FastAPI (8000, Docker 내부망 전용)
 │   └── app/routers/         # parse_schedule · parse_disruption · suggest_adjustment
-├── docs/                    # API 계약 · 배포 메모 · 이미지
+├── docs/images/             # README 이미지
 └── docker-compose.yml
 ```
 
@@ -176,7 +176,6 @@ shiftrhythm-backend/
 | `GET` | `/api/reports/{daily,weekly,monthly}` | 리포트 |
 
 전체 명세는 서버 실행 후 Swagger UI(`/swagger-ui/index.html`)에서 확인할 수 있습니다.
-Spring ↔ FastAPI 간 내부 계약은 [docs/api-contract.md](docs/api-contract.md)에 정리되어 있습니다.
 
 ## 🚀 실행 방법
 
@@ -191,4 +190,4 @@ docker compose up --build
 | ai-server | 8000 | Docker 내부망 전용 |
 | db | 3306 | Docker 내부망 전용 |
 
-`main` 브랜치에 push하면 GitHub Actions가 테스트 후 EC2에 자동 배포합니다. 자세한 운영 방법은 [docs/deployment.md](docs/deployment.md)를 참고하세요.
+`main` 브랜치에 push하면 GitHub Actions가 테스트 후 EC2에 자동 배포합니다.
