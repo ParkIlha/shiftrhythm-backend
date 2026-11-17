@@ -1,231 +1,194 @@
-# shiftrhythm-backend
+<div align="center">
 
-교대근무자 생활 리듬 서비스의 백엔드. Spring Boot와 FastAPI 두 서버로 구성된다.
+<img src="docs/images/banner.jpg" alt="시차 — 매주 건너는 시차를 함께 설계해요" width="100%" />
 
-## 레포 구조
+# 시차 · Backend
 
-```text
-project-root/
-  backend/          Spring Boot (도메인 로직, 8080 외부 노출)
-  ai-server/        FastAPI (AI 판단, 8000 내부망 전용)
-  docker-compose.yml
-  .env.example
+**매주 바뀌는 근무표 속에서 살아가는 교대근무자를 위한 맞춤형 일주기 리듬 설계 솔루션**
+
+멋쟁이사자처럼 14th 중앙해커톤 · 팀 왕사자
+
+[Frontend Repo](https://github.com/jeehyung0922-lab/lion) · [API Contract](docs/api-contract.md) · [배포 메모](docs/deployment.md)
+
+</div>
+
+<br/>
+
+## 📌 소개
+
+> **비행기를 타지 않았을 뿐, 그들의 몸은 매주 시차를 겪습니다.**
+
+WHO 산하 국제암연구소(IARC)는 일주기 리듬을 교란하는 교대근무를 **2A군 발암 가능 요인**으로 분류합니다.
+하지만 기존 가이드는 "야간 근무 전 낮잠을 자라", "취침 6시간 전 카페인을 제한하라" 같은 추상적인 원칙에 머무릅니다.
+교대근무자에게 정말 필요한 건 **"오늘 22시 출근인 내가 지금 당장 몇 시에 자야 하는가"** 라는 구체적인 시각입니다.
+
+**시차**는 근무표 사진 한 장으로 시작해, 교대근무자의 무너진 생활 리듬을 **매일 재계산되는 개인 맞춤 수면·식사 스케줄**로 되돌립니다.
+바뀌는 근무 리듬을 "시간대 이동"으로 표현해, 내가 이번 주에 몇 시간의 시차를 건너고 있는지 직관적으로 보여줍니다.
+
+## ✨ 주요 기능
+
+<img src="docs/images/features.jpg" alt="주요 기능 화면" width="100%" />
+
+| 기능 | 설명 |
+| --- | --- |
+| 📷 **근무표 사진 한 장으로 시작** | 병동 근무표 이미지를 업로드하면 AI가 표의 근무 코드(D, 주간, 1조 등)를 주간·이브닝·야간·휴무로 해석해 날짜별 일정을 추출합니다. 여러 명이 있는 표라면 본인 행만 골라 읽습니다. |
+| 💬 **AI 자유 텍스트 재설계** | "퇴근이 2시간 늦어졌어요"처럼 말하면 AI가 상황을 구조화하고, 남은 하루의 수면·식사 일정을 다시 짜 줍니다. |
+| 🌏 **수면 데이터의 감성적 재해석, 콜렉트북** | 매일의 리듬 변화를 UTC 시간대와 나라로 바꿔, 이번 달 내가 지나온 "시간대"를 모아 볼 수 있습니다. |
+| 📊 **정량 지표로 증명하는 루틴 개선** | 일·주·월 단위 리포트로 총 수면시간, 일평균 수면, 재계획 이력을 확인합니다. |
+| 🌙 **체크인 기반 개인화** | 기상·퇴근 체크인(컨디션, 입면 시간, 수면 만족도)이 쌓일수록 추천이 더 정확해집니다. |
+
+## 💡 핵심 컨셉
+
+<img src="docs/images/concept.jpg" alt="핵심 컨셉" width="100%" />
+
+### "AI가 알아서 정한다"가 아니라, "규칙이 안전 범위를 먼저 정하고 AI는 그 안에서 미세조정만 한다"
+
+수면은 건강과 직결되기 때문에, AI의 판단만 믿을 수 없습니다. 그래서 시차는 **2-Layer 하이브리드 아키텍처**를 택했습니다.
+
+| Layer | 담당 | 역할 |
+| --- | --- | --- |
+| **1. 결정적 제약 엔진** | Spring Boot | 근무 모드 판정, 규칙 기반 수면 초안, 수면 가능 범위(`sleepWindow`)와 식사 제약(`mealConstraints`) 계산, AI 응답 검증 및 clamp, 실패 시 fallback |
+| **2. AI 생성·파싱 레이어** | FastAPI + Claude | 근무표 이미지 파싱, 자연어 재설계 요청 파싱, 제약 범위 안에서 체크인 기록을 반영한 수면·식사 블록 개인화와 안내 문구 생성 |
+
+- AI가 제안한 수면 시각은 Spring에서 다시 검증합니다. `sleepWindow` 밖으로 나가지 못하고, 규칙 기반 초안에서도 허용 오차 이상 벗어나지 못하도록 clamp합니다. 식사 시각도 컷오프와 야간 제한 구간을 피하도록 보정합니다.
+- 수면·식사 제안 호출이 실패하면 규칙 기반 초안으로 fallback합니다. AI 서버가 응답하지 않아도 오늘의 리듬은 계속 계산됩니다.
+- 근무 패턴은 7가지 모드로 분류합니다: `DAY`, `EVENING`, `NIGHT`, `SHIFT_TRANSITION`, `OFF_RHYTHM_MAINTAIN`, `OFF_RHYTHM_SHIFT`, `OFF_RECOVERY`.
+
+## 🏗 SW 아키텍처
+
+```mermaid
+flowchart LR
+    U["📱 사용자<br/>(PWA)"]
+
+    subgraph Vercel
+        FE["Frontend<br/>React 19 · Vite · Tailwind"]
+    end
+
+    subgraph EC2["AWS EC2 · Docker Compose"]
+        direction LR
+        BE["Spring Boot :8080<br/>결정적 제약 엔진"]
+        AI["FastAPI :8000<br/>AI 생성·파싱<br/>(내부망 전용)"]
+        DB[("MySQL 8.0<br/>Flyway")]
+    end
+
+    CF["Cloudflare Tunnel"]
+    CL["Claude API<br/>(Anthropic)"]
+    GH["GitHub Actions<br/>CI/CD"]
+
+    U --> FE
+    FE -- REST --> CF --> BE
+    BE -- JPA --> DB
+    BE -- "retry 1 · fallback<br/>검증 · clamp" --> AI
+    AI -- "Vision · Text" --> CL
+    GH -. "test → SSH deploy" .-> EC2
 ```
 
-## 통신 구조
+### 리듬 생성 흐름
 
-```text
-[사용자] → Nginx → Spring (8080)
-                        ↓
-                 FastAPI (8000)
-                        ↓
-                   Claude API
+```mermaid
+sequenceDiagram
+    autonumber
+    participant FE as Frontend
+    participant BE as Spring Boot
+    participant AI as FastAPI
+    participant LLM as Claude
+
+    FE->>BE: 근무표 이미지 업로드
+    BE->>AI: POST /parse-schedule
+    AI->>LLM: Vision 파싱
+    LLM-->>AI: 근무 타입 · 날짜별 일정
+    AI-->>BE: shiftTypes, shifts
+    Note over BE: 근무 모드 판정<br/>규칙 기반 수면 초안 생성<br/>sleepWindow · mealConstraints 계산
+    BE->>AI: POST /suggest-adjustment (초안 + 제약 + 체크인 기록)
+    AI->>LLM: 제약 안에서 개인화
+    LLM-->>AI: 수면 · 식사 블록 + 안내 문구
+    AI-->>BE: 제안 결과
+    Note over BE: 응답 검증 · clamp<br/>(실패 시 규칙 기반 fallback)
+    BE-->>FE: 오늘의 리듬
 ```
 
-* Spring은 외부 API와 도메인 로직을 담당한다.
-* FastAPI는 근무표/자연어 파싱과 수면·식사 리듬 설계를 담당한다.
-* Spring ↔ FastAPI 통신은 Docker 내부망에서 이루어진다.
-* 인프라(Docker Compose, Dockerfile, 네트워크, 배포)는 BE 담당이다.
+## 🛠 기술 스택
 
-## 역할 분담
+### Backend
 
-### Spring
+![Java](https://img.shields.io/badge/Java_21-007396?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
+![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL_8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white)
+![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)
 
-* 근무 일정 및 사용자 데이터 관리
-* 근무 모드 판정
-* 규칙 기반 수면 초안(`currentSleepBlock`) 생성
-* 수면 가능 범위(`sleepWindow`) 및 식사 제약(`mealConstraints`) 계산
-* AI 응답 검증 및 필요 시 clamp
-* AI 호출 실패 시 규칙 기반 값으로 fallback
-* 최종 생활 리듬 저장 및 클라이언트 응답
+### AI Server
 
-### FastAPI
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Claude](https://img.shields.io/badge/Claude_API-D97757?style=for-the-badge&logo=anthropic&logoColor=white)
 
-* 근무표 이미지 파싱
-* 재설계 자연어 파싱
-* `currentSleepBlock`을 참고한 수면 블록 설계/재설계
-* `sleepWindow`, `mealConstraints` 제약 준수
-* 체크인 기록 및 당일 상황을 반영한 개인화
-* 식사·간식 시각 및 사용자 안내 문구 생성
+### Frontend
 
-## 실행
+![React](https://img.shields.io/badge/React_19-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS_4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white)
+
+### Infra & DevOps
+
+![AWS EC2](https://img.shields.io/badge/AWS_EC2-FF9900?style=for-the-badge&logo=amazonec2&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Cloudflare_Tunnel-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+
+## 📂 레포 구조
+
+```text
+shiftrhythm-backend/
+├── backend/                 # Spring Boot (8080, 외부 노출)
+│   └── src/main/java/com/shiftrhythm/backend/
+│       ├── domain/
+│       │   ├── schedule/    # 근무 일정 · 모드 판정 · 수면/식사 제약 계산 (policy/)
+│       │   ├── routine/     # 온보딩 · 오늘의 리듬 · 재설계(replan)
+│       │   ├── checkin/     # 기상 · 퇴근 체크인
+│       │   ├── jetlag/      # 리듬 변화 → UTC 시간대 매핑
+│       │   ├── collectbook/ # 콜렉트북
+│       │   ├── report/      # 일 · 주 · 월 리포트
+│       │   └── ai/          # AI 서버 어댑터 (+ Fake 어댑터)
+│       └── web/             # 공통 예외 처리
+├── ai-server/               # FastAPI (8000, Docker 내부망 전용)
+│   └── app/routers/         # parse_schedule · parse_disruption · suggest_adjustment
+├── docs/                    # API 계약 · 배포 메모 · 이미지
+└── docker-compose.yml
+```
+
+## 🔌 주요 API
+
+| Method | Endpoint | 설명 |
+| --- | --- | --- |
+| `POST` | `/api/onboarding/schedule/parse` | 근무표 이미지 파싱 |
+| `POST` | `/api/onboarding/schedule` | 근무표 등록 |
+| `POST` | `/api/onboarding/profile` | 사용자 프로필 · 리듬 선호 등록 |
+| `GET` | `/api/routines/today` | 오늘의 수면 · 식사 리듬 |
+| `POST` | `/api/routines/replan/preview` | 자연어 재설계 미리보기 |
+| `POST` | `/api/routines/replan/confirm` | 재설계 확정 |
+| `POST` | `/api/checkins/wake` · `/clockout` | 기상 · 퇴근 체크인 |
+| `GET` | `/api/collectbook` | 콜렉트북 |
+| `GET` | `/api/reports/{daily,weekly,monthly}` | 리포트 |
+
+전체 명세는 서버 실행 후 Swagger UI(`/swagger-ui/index.html`)에서 확인할 수 있습니다.
+Spring ↔ FastAPI 간 내부 계약은 [docs/api-contract.md](docs/api-contract.md)에 정리되어 있습니다.
+
+## 🚀 실행 방법
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # ANTHROPIC_API_KEY 등 환경변수 설정
 docker compose up --build
 ```
 
-`.env`에 `ANTHROPIC_API_KEY` 등 필요한 환경변수를 설정한다.
-
-| 서비스       |   포트 | 비고            |
-| --------- | ---: | ------------- |
-| backend   | 8080 | 외부 노출         |
+| 서비스 | 포트 | 비고 |
+| --- | ---: | --- |
+| backend | 8080 | 외부 노출 |
 | ai-server | 8000 | Docker 내부망 전용 |
-| db        | 3306 | Docker 내부망 전용 |
+| db | 3306 | Docker 내부망 전용 |
 
-# API Contract (Spring ↔ FastAPI)
-
-Spring은 `AI_SERVER_BASE_URL`(기본 `http://ai-server:8000`)을 통해 FastAPI를 호출한다.
-
-공통 정책:
-
-* 타임아웃 3초
-* 실패 시 1회 재시도
-* 호출 실패 시 Spring에서 fallback 처리
-* 요청/응답은 고정 스키마 사용
-
----
-
-## `POST /parse-schedule`
-
-근무표 이미지에서 근무 타입과 날짜별 일정을 추출한다.
-
-### Request
-
-```json
-{
-  "imageBase64": "string"
-}
-```
-
-### Response
-
-```json
-{
-  "shiftTypes": [
-    {
-      "shiftType": "DAY | EVENING | NIGHT",
-      "startTime": "HH:MM",
-      "endTime": "HH:MM"
-    }
-  ],
-  "shifts": [
-    {
-      "date": "YYYY-MM-DD",
-      "shiftType": "DAY | EVENING | NIGHT | OFF"
-    }
-  ],
-  "monthGuessed": "boolean, true면 모든 shifts[].date의 월을 오늘 날짜 기준으로 추측한 것 — 절대 연/월을 믿지 말고 day 순서(상대 순번)만 신뢰"
-}
-```
-
----
-
-## `POST /parse-disruption`
-
-재설계를 위해 입력된 자연어를 구조화된 이벤트로 변환한다.
-
-### Request
-
-```json
-{
-  "rawText": "string",
-  "shiftContext": {
-    "currentShift": "string",
-    "nextShift": "string",
-    "scheduledClockOut": "string | null"
-  }
-}
-```
-
-### Response
-
-```json
-{
-  "eventType": "SHIFT_END_DELAY | SHIFT_ADDED | SLEEP_SHORTAGE | APPOINTMENT_ADDED | OTHER",
-  "delayMinutes": "int",
-  "confirmedAt": "ISO8601",
-  "reasonCategory": "LATE_CLOCKOUT | EARLY_CLOCKOUT | SHIFT_CHANGE | PERSONAL_SCHEDULE | OTHER"
-}
-```
-
----
-
-## `POST /suggest-adjustment`
-
-Spring이 계산한 수면 초안과 제약 조건을 바탕으로 AI가 수면·식사 블록을 설계하거나 재설계한다.
-
-근무표 등록 직후, 체크인 이후 개인화, 일정 변경에 따른 재설계 상황에서 공통으로 사용한다.
-
-### Request
-
-```json
-{
-  "mode": "string",
-  "sleepWindow": {
-    "earliestSleepStart": "HH:MM",
-    "latestSleepEnd": "HH:MM"
-  },
-  "currentSleepBlock": {
-    "mainSleepStart": "HH:MM",
-    "mainSleepEnd": "HH:MM",
-    "supplementarySleepStart": "HH:MM | null",
-    "supplementarySleepEnd": "HH:MM | null",
-    "napMinutes": "int | null",
-    "ankerBlockStart": "HH:MM | null",
-    "ankerBlockEnd": "HH:MM | null"
-  },
-  "mealConstraints": {
-    "bigMealCutoff": "HH:MM",
-    "nightRestrictionStart": "HH:MM",
-    "nightRestrictionEnd": "HH:MM"
-  },
-  "history": {
-    "recentSleepStarts": ["HH:MM"],
-    "recentCondition": ["int"],
-    "recentSleepSatisfaction": ["int"],
-    "recentSleepLatencyMinutes": ["int"],
-    "recentNightHunger": ["int"],
-    "rhythmPreference": "string | null"
-  },
-  "todayContext": "string | null"
-}
-```
-
-### Response
-
-```json
-{
-  "sleep": {
-    "mainSleepStart": "HH:MM",
-    "mainSleepEnd": "HH:MM",
-    "supplementarySleepStart": "HH:MM | null",
-    "supplementarySleepEnd": "HH:MM | null",
-    "napMinutes": "int | null",
-    "reason": "string"
-  },
-  "meal": {
-    "mainMealTime": "HH:MM",
-    "subMealTime": "HH:MM | null",
-    "snackNeeded": "boolean",
-    "snackTime": "HH:MM | null",
-    "reason": "string"
-  }
-}
-```
-
-`sleepWindow`는 AI가 넘을 수 없는 수면 하드 제약이다. FastAPI가 반환한 결과는 Spring에서 한 번 더 검증한다.
-
-상세 프롬프트 규칙, 개인화 기준, 모드별 설계 기준 및 clamp 정책은 별도 **AI 서버 구현 명세**를 따른다.
-
-## 배포
-
-EC2에 배포한다. 레포에 별도의 프로덕션 전용 설정(예: `docker-compose.prod.yml`, nginx, ECR)은 없고,
-로컬 개발과 동일한 `docker-compose.yml`을 EC2 위에서 그대로 띄운다.
-
-- **인프라**: EC2 인스턴스 하나에 `docker compose`로 `backend`/`ai-server`/`db`(MySQL) 컨테이너 3개를 띄운다.
-  RDS 등 외부 관리형 DB는 쓰지 않는다.
-- **CD**: `main`에 push되면 `.github/workflows/backend-test.yml`의 `deploy` job이 테스트 통과 후 자동으로
-  EC2에 SSH 접속해 `git pull` → `docker compose up -d --build`를 실행한다. GitHub Secrets에
-  `EC2_HOST`/`EC2_USER`/`EC2_SSH_KEY`가 등록돼 있어야 동작한다.
-- **포트/노출**: `backend`만 컨테이너 `0.0.0.0:8080`으로 호스트에 노출한다. `ai-server`는 포트 매핑이 없어
-  같은 docker 네트워크 안에서 `backend`가 `http://ai-server:8000`으로만 접근할 수 있다(외부 직접 접근 불가).
-- **외부 공개**: nginx 리버스 프록시는 없다. EC2 위에서 `cloudflared tunnel --url http://localhost:8080`를
-  docker compose와 별개의 백그라운드 프로세스로 실행해, 요청 시 발급되는 `*.trycloudflare.com` 주소로
-  8080을 외부에 공개한다. 이 프로세스가 재시작되면 URL이 바뀐다. CD와는 무관하게 별도로 관리해야 한다.
-- **데모 데이터**: `backend/src/main/resources/db/seed_demo.sql`은 Flyway 마이그레이션이 아니라 수동 시드라
-  CD가 자동으로 돌리지 않는다. 시연 전엔 EC2에서 직접
-  `docker compose exec -T db mysql --default-character-set=utf8mb4 -u root -proot shiftrhythm < backend/src/main/resources/db/seed_demo.sql`로
-  다시 넣어줘야 한다(날짜가 `CURDATE()` 기준 상대값이라 실행 시점 기준 "오늘"로 리셋된다).
-  `--default-character-set=utf8mb4`를 빠뜨리면 mysql 클라이언트가 접속 charset을 기본값(환경에 따라
-  latin1 등)으로 잡아서 한글 리터럴(`ai_reason` 등)이 깨져 저장된다.
+`main` 브랜치에 push하면 GitHub Actions가 테스트 후 EC2에 자동 배포합니다. 자세한 운영 방법은 [docs/deployment.md](docs/deployment.md)를 참고하세요.
